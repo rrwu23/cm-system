@@ -459,12 +459,14 @@
 /**
  * ---------------------------------------------------------------------------
  * Data contract (the backend is still being built, so every read is best-effort)
- *   GET https://api2.rongrongwu.com/getuser      -> current username
- *   GET https://api2.rongrongwu.com/getcompanies -> rows for the analysis table
+ *   GET https://api.kidsfunbank.ca/getuser      -> current username
+ *   GET https://api.kidsfunbank.ca/getcompanies -> rows for the analysis table
  * Only ENDPOINTS.companies needs touching once the table endpoint has a name.
+ * The base host is the same one login.html posts to, so the session_id cookie
+ * written at sign-in travels with these requests.
  * ---------------------------------------------------------------------------
  */
-const API_BASE = 'https://api2.rongrongwu.com';
+const API_BASE = 'https://api.kidsfunbank.ca';
 const ENDPOINTS = {
   user: '/getuser',
   companies: '/getcompanies'
