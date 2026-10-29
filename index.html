@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Company desk</title>
+<meta name="robots" content="noindex">
+<noscript><meta http-equiv="refresh" content="0; url=login.html"></noscript>
+<style>
+  /* ---------- Design tokens: identical palette to login.html / home.html ---------- */
+  :root {
+    --bg: #eef2f8;
+    --surface: #ffffff;
+    --ink: #17233b;
+    --ink-soft: #5c6a84;
+    --line: #dde4ef;
+    --amber: #ffd24a;
+    --amber-strong: #e5a900;
+    --blue-ink: #21456f;
+    --radius: 14px;
+    --shadow-md: 0 14px 32px -24px rgba(23, 35, 59, .55);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.4;
+    background:
+      radial-gradient(1100px 560px at 50% -260px, #ffffff 0%, rgba(255, 255, 255, 0) 72%),
+      var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- One centred column: the "opening" card plus the manual links ---------- */
+  .shell {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 16px;
+    width: min(390px, 100% - 36px);
+    min-height: 100%;
+    margin-inline: auto;
+    padding: 30px 0 48px;
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 22px 22px 24px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+  }
+
+  .mark {
+    width: 30px;
+    height: 22px;
+    margin-bottom: 4px;
+    border-radius: 8px;
+    background: linear-gradient(160deg, var(--amber), var(--amber-strong));
+  }
+
+  .title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+  }
+
+  .hint {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+
+  .links {
+    margin: 0;
+    padding-inline: 4px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+  }
+
+  .links a {
+    color: var(--blue-ink);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+  }
+
+  .links a:hover { color: var(--amber-strong); }
+
+  .links a:focus-visible {
+    outline: 2px solid var(--blue-ink);
+    outline-offset: 2px;
+  }
+</style>
+</head>
+<body>
+
+<!--
+  Entry point for the bare host (https://www.kidsfunbank.ca/). Static hosting
+  serves this file for "/", so it is the only place that can decide where a
+  visitor lands: the dashboard when the session_id cookie is present, the
+  sign-in page otherwise. The card below is a fallback — the script normally
+  navigates before it is read — and the two links keep the page usable when
+  JavaScript is blocked (see <noscript> in <head>).
+-->
+<main class="shell">
+  <div class="panel">
+    <span class="mark" aria-hidden="true"></span>
+    <h1 class="title">Opening your desk…</h1>
+    <p class="hint" id="entry-hint">Checking your session.</p>
+  </div>
+
+  <p class="links">
+    Not moved? <a href="login.html">Sign in</a> · <a href="home.html">Open the dashboard</a>
+  </p>
+</main>
+
+<script>
+/**
+ * ---------------------------------------------------------------------------
+ * Entry point contract
+ *   document.cookie has a non-empty session_id -> home.html
+ *   otherwise                                  -> login.html
+ * The cookie is the one login.html writes (Path=/), so reading it is the whole
+ * check. No API call is made here: an expired token still gets the dashboard,
+ * which is where the API's 401 is handled.
+ * ---------------------------------------------------------------------------
+ */
+const SESSION_COOKIE = 'session_id';
+const SIGNED_IN_PAGE = 'home.html';
+const SIGNED_OUT_PAGE = 'login.html';
+
+/**
+ * Input: a cookie name.
+ * Output: the URL-decoded cookie value, or '' when the cookie is absent/empty.
+ * Action: splits document.cookie on '; ' and matches the name exactly, so a
+ *         neighbour like session_idx= cannot be mistaken for session_id.
+ * Role: mirrors readCookie() in login.html — both pages must agree on the format.
+ */
+function readCookie(name) {
+  const jar = document.cookie ? document.cookie.split('; ') : [];
+
+  for (const entry of jar) {
+    const at = entry.indexOf('=');
+    if (at > -1 && entry.slice(0, at) === name) {
+      return decodeURIComponent(entry.slice(at + 1));
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Input: the session token, '' when the visitor has none.
+ * Output: 'home.html' or 'login.html'.
+ * Action: treats any non-empty token as signed in.
+ * Role: the single decision point for this page, so the hint text and the
+ *       redirect can never disagree.
+ */
+function entryPage(token) {
+  return token ? SIGNED_IN_PAGE : SIGNED_OUT_PAGE;
+}
+
+/**
+ * Input: none.
+ * Output: nothing (it navigates).
+ * Action: resolves the target from the cookie, updates the hint, then calls
+ *         location.replace() so this stub never sits in the Back history.
+ * Role: runs once at load; everything else in the file is fallback UI.
+ */
+function enter() {
+  const page = entryPage(readCookie(SESSION_COOKIE));
+  const hint = document.getElementById('entry-hint');
+
+  if (hint) {
+    hint.textContent = page === SIGNED_IN_PAGE
+      ? 'Signed in — loading the dashboard.'
+      : 'No session — loading the sign-in page.';
+  }
+
+  window.location.replace(page);
+}
+
+enter();
+</script>
+
+</body>
+</html>
