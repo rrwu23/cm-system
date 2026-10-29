@@ -418,7 +418,7 @@
 
 <body>
 <main class="shell">
-  <!-- Welcome line: <username> is filled from /getuser -->
+  <!-- Welcome line: "Welcome, <user>" — <user> is /getuser's user_name -->
   <header class="topbar">
     <div class="welcome">
       <span class="mark" aria-hidden="true"></span>
@@ -494,7 +494,7 @@
 /**
  * ---------------------------------------------------------------------------
  * Data contract (the backend is still being built, so every read is best-effort)
- *   GET  https://api.kidsfunbank.ca/getuser      -> { username, logged_in_at, expires_at }
+ *   GET  https://api.kidsfunbank.ca/getuser      -> { user_name, ... } for "Welcome, <user>"
  *   GET  https://api.kidsfunbank.ca/getcompanies -> rows for the analysis table
  *   POST https://api.kidsfunbank.ca/logout       -> clears the session_id cookie
  *   (missing endpoints, or no session -> 401 "Not authenticated")
@@ -597,15 +597,23 @@ function toRows(payload) {
 
 /**
  * Input: raw JSON payload from /getuser.
- * Output: the username as a trimmed string ('' when unavailable).
- * Action: handles plain strings plus {username} / {user} / {name} / {data: ...} shapes.
- * Role: fills the welcome line; the caller owns the fallback text.
+ * Output: the user name as a trimmed string ('' when unavailable).
+ * Action: handles plain strings plus {user_name} / {userName} / {username} / {user} /
+ *         {name} / {data: ...} shapes, in that priority order.
+ * Role: fills the "Welcome, <user>" line; the caller owns the placeholder text.
  */
 function toUsername(payload) {
   if (typeof payload === 'string') return payload.trim();
   if (!payload || typeof payload !== 'object') return '';
 
-  const candidates = [payload.username, payload.user, payload.name, payload.data];
+  const candidates = [
+    payload.user_name,
+    payload.userName,
+    payload.username,
+    payload.user,
+    payload.name,
+    payload.data
+  ];
   for (const candidate of candidates) {
     if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
     if (candidate && typeof candidate === 'object') {
@@ -652,7 +660,7 @@ async function fetchJson(path) {
  * Output: true when the API refused the request for lack of a session (401/403).
  * Action: reads the .status fetchJson() attaches to its errors.
  * Role: separates "signed out" (back to login.html) from "endpoint not ready"
- *       (keep the page and fall back to guest).
+ *       (keep the page and leave the welcome line as a placeholder).
  */
 function isSignedOut(error) {
   return Boolean(error) && (error.status === 401 || error.status === 403);
@@ -764,9 +772,10 @@ function renderTable(rows) {
 /**
  * Input: none.
  * Output: none.
- * Action: GETs /getuser and writes the username into the welcome line; sends the
- *         visitor back to login.html when the API answers 401/403 (no session),
- *         and otherwise falls back to "guest" with an explanatory tooltip.
+ * Action: GETs /getuser and writes its user_name into the welcome line as
+ *         "Welcome, <user>"; sends the visitor back to login.html when the API
+ *         answers 401/403 (no session), and shows an em-dash placeholder with an
+ *         explanatory tooltip when the API cannot be reached at all.
  * Role: personalizes the top bar and doubles as the session check for the page.
  */
 async function loadUser() {
@@ -774,16 +783,16 @@ async function loadUser() {
   if (!name) return;
 
   try {
-    const username = toUsername(await fetchJson(ENDPOINTS.user));
-    name.textContent = username || 'guest';
-    name.dataset.state = username ? 'ready' : 'empty';
+    const user = toUsername(await fetchJson(ENDPOINTS.user));
+    name.textContent = user || EMPTY;
+    name.dataset.state = user ? 'ready' : 'empty';
   } catch (error) {
     if (isSignedOut(error)) {
       leaveForSignIn();
       return;
     }
 
-    name.textContent = 'guest';
+    name.textContent = EMPTY;
     name.dataset.state = 'offline';
     name.title = 'Could not reach ' + API_BASE + ENDPOINTS.user;
   }
