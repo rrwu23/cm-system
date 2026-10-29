@@ -1,0 +1,6 @@
+# Local-only project notes (Cline memory bank) - kept on disk, never published
+memory-bank/
+
+# Runtime logs and OS cruft
+*.log
+.DS_Store

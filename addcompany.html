@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add company &middot; Company desk</title>
+<style>
+  /* ---------- Design tokens: same amber + slate-blue accents as home.html ---------- */
+  :root {
+    --bg: #eef2f8;
+    --surface: #ffffff;
+    --ink: #17233b;
+    --ink-soft: #5c6a84;
+    --ink-faint: #8d99ae;
+    --line: #dde4ef;
+    --amber: #ffd24a;
+    --amber-strong: #e5a900;
+    --amber-soft: #fff5cc;
+    --amber-ink: #3a2c00;
+    --amber-line: #f0d47a;
+    --blue-soft: #e4edfa;
+    --blue-line: #c2d4ee;
+    --blue-ink: #21456f;
+    --focus: #2f6fed;
+    --radius: 14px;
+    --shadow-sm: 0 1px 2px rgba(23, 35, 59, .06);
+    --shadow-md: 0 14px 32px -24px rgba(23, 35, 59, .55);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100%;
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.4;
+    background:
+      radial-gradient(900px 420px at 8% -200px, rgba(255, 210, 74, .32) 0%, rgba(255, 210, 74, 0) 70%),
+      radial-gradient(1100px 560px at 50% -260px, #ffffff 0%, rgba(255, 255, 255, 0) 72%),
+      var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .shell {
+    width: min(940px, 100% - 40px);
+    margin-inline: auto;
+    padding: 26px 0 40px;
+  }
+
+  /* ---------- Top bar: amber mark + page name + way back ---------- */
+  .topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 6px 2px 0;
+  }
+
+  .welcome {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .welcome .mark {
+    flex: none;
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    background: linear-gradient(140deg, var(--amber) 0%, var(--amber-strong) 100%);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .welcome .label { color: var(--ink-soft); font-weight: 500; font-size: 15px; }
+  .welcome .sep { color: var(--ink-faint); }
+
+  .welcome .name {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    white-space: nowrap;
+  }
+
+  /* ---------- Buttons: amber primary, slate-blue secondary ---------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 0 24px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .12s ease;
+  }
+
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .btn-amber {
+    background: linear-gradient(150deg, var(--amber) 0%, var(--amber-strong) 100%);
+    color: var(--amber-ink);
+    box-shadow: 0 12px 24px -16px rgba(229, 169, 0, .95);
+  }
+
+  .btn-amber:hover { filter: brightness(1.03); }
+
+  .btn-soft {
+    background: var(--blue-soft);
+    border-color: var(--blue-line);
+    color: var(--blue-ink);
+  }
+
+  .btn-soft:hover { background: #d8e5f8; }
+
+  .btn-ghost {
+    min-height: 38px;
+    padding: 0 16px;
+    background: rgba(255, 255, 255, .72);
+    border-color: var(--line);
+    color: var(--ink-soft);
+    font-size: 14px;
+  }
+
+  .btn-ghost:hover { background: #fff; border-color: #cdd8e8; }
+
+  /* ---------- Sheet: stacked cards, one per group of fields ---------- */
+  .sheet {
+    display: grid;
+    gap: 18px;
+    margin-top: 28px;
+  }
+
+  .card {
+    padding: 24px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Identity card carries a soft amber wash so the theme reads immediately. */
+  .card-identity {
+    background: linear-gradient(180deg, #fffdf2 0%, #ffffff 62%);
+    border-color: #f1e5b4;
+  }
+
+  .card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px 16px;
+    margin-bottom: 18px;
+  }
+
+  .card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+  }
+
+  /* Amber tick to the left of every card title. */
+  .card-title::before {
+    content: "";
+    width: 4px;
+    height: 18px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, var(--amber) 0%, var(--amber-strong) 100%);
+  }
+
+  .card-note {
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: 13px;
+  }
+
+  .grid {
+    display: grid;
+    gap: 16px 18px;
+  }
+
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+  .span-2 { grid-column: span 2; }
+
+  /* Divider label inside a card, e.g. "Prices" / "WL ratios". */
+  .subhead {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 22px 0 14px;
+    color: var(--ink-faint);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+  }
+
+  .subhead::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  /* ---------- Fields: label above a white input (the sheet's empty boxes) ---------- */
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .field-label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    color: var(--ink-soft);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .field-label .note {
+    color: var(--ink-faint);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .req {
+    color: var(--amber-strong);
+    font-weight: 700;
+  }
+
+  .field input {
+    width: 100%;
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid #d5dfee;
+    border-radius: 10px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+  }
+
+  .field input { height: 46px; }
+
+  .field input[type="number"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .field input:hover { border-color: #c3d1e5; }
+
+  .field input:focus {
+    outline: none;
+    border-color: var(--amber-strong);
+    box-shadow: 0 0 0 4px rgba(255, 210, 74, .32);
+  }
+
+  .field input::placeholder { color: var(--ink-faint); }
+
+  /* Suffix such as "/100" or "×" pinned inside the input. */
+  .control { position: relative; }
+
+  .control input { padding-right: 56px; }
+
+  .control .suffix {
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    transform: translateY(-50%);
+    color: var(--ink-faint);
+    font-size: 13px;
+    font-weight: 600;
+    pointer-events: none;
+  }
+
+  /* Calculated ratios are amber-filled and read-only. */
+  .field input[readonly] {
+    background: var(--amber-soft);
+    border-color: var(--amber-line);
+    color: var(--amber-ink);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    cursor: default;
+  }
+
+  .field input[readonly]:focus { box-shadow: 0 0 0 4px rgba(255, 210, 74, .28); }
+
+  .field-hint {
+    margin: 12px 0 0;
+    color: var(--ink-faint);
+    font-size: 12px;
+  }
+
+  /* ---------- Uploaded .html reports: dashed card is one big file picker ---------- */
+  .upload {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: 96px;
+    padding: 16px;
+    border: 1px dashed #cbd7e8;
+    border-radius: 10px;
+    background: #fff;
+    transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+  }
+
+  /* The real input covers the card, so a click anywhere opens the file picker. */
+  .field .upload-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .upload-face {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    pointer-events: none;
+  }
+
+  .upload-badge {
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--amber-soft);
+    color: var(--amber-ink);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+  }
+
+  .upload-name {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--ink-faint);
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .upload:hover {
+    border-color: var(--amber-line);
+    background: #fffdf5;
+  }
+
+  .upload:focus-within {
+    border-color: var(--amber-strong);
+    box-shadow: 0 0 0 4px rgba(255, 210, 74, .28);
+  }
+
+  /* A picked .html file turns the card solid amber and shows the file name. */
+  .upload[data-state="ready"] {
+    border-style: solid;
+    border-color: var(--amber-line);
+    background: var(--amber-soft);
+  }
+
+  .upload[data-state="ready"] .upload-name {
+    color: var(--amber-ink);
+    font-weight: 600;
+  }
+
+  .upload[data-state="error"] {
+    border-style: solid;
+    border-color: #d9534f;
+    background: #fff6f5;
+  }
+
+  .upload[data-state="error"] .upload-name {
+    color: #a3312d;
+    font-weight: 600;
+  }
+
+  .upload-meta { margin: 0; }
+
+  .upload-meta[data-state="ready"] { color: var(--amber-ink); }
+
+  .upload-meta[data-state="error"] {
+    color: #a3312d;
+    font-weight: 600;
+  }
+
+  /* ---------- Sticky action bar: Reset + amber Submit ---------- */
+  .sheet-footer {
+    position: sticky;
+    bottom: 16px;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 18px;
+    padding: 14px 18px;
+    background: rgba(255, 255, 255, .93);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(6px);
+  }
+
+  .calc-hint {
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: 13px;
+  }
+
+  .calc-hint[data-state="done"] { color: #1d6b46; }
+  .calc-hint[data-state="warn"] { color: #9a5b00; }
+
+  .calc-hint[data-state="error"] {
+    color: #a3312d;
+    font-weight: 600;
+  }
+
+  .sheet-footer .buttons {
+    display: flex;
+    gap: 10px;
+  }
+
+  /* ---------- Responsive: 4/3 columns fold down, then everything stacks ---------- */
+  @media (max-width: 880px) {
+    .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 760px) {
+    .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-2 { grid-template-columns: minmax(0, 1fr); }
+    .span-2 { grid-column: auto; }
+    .card { padding: 20px 16px; }
+  }
+
+  @media (max-width: 560px) {
+    .shell { width: calc(100% - 28px); padding-top: 18px; }
+    .grid-3, .grid-4 { grid-template-columns: minmax(0, 1fr); }
+    .card { padding: 18px 14px; }
+    .upload { min-height: 84px; padding: 14px; }
+    .sheet-footer { padding: 12px; }
+    .sheet-footer .buttons { width: 100%; }
+    .sheet-footer .btn { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <!-- Top bar mirrors home.html so both pages read as one app -->
+  <header class="topbar">
+    <div class="welcome">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="label">Company desk</span>
+      <span class="sep" aria-hidden="true">/</span>
+      <h1 class="name">Add company</h1>
+    </div>
+    <a class="btn btn-ghost" href="home.html">Back to dashboard</a>
+  </header>
+
+  <form class="sheet" id="add-company-form" autocomplete="off">
+    <!-- Identity: the two required fields, plus the uploaded company profile -->
+    <section class="card card-identity" aria-labelledby="identity-title">
+      <div class="card-head">
+        <h2 class="card-title" id="identity-title">Company</h2>
+        <p class="card-note">Name and symbol become the dashboard row; the profile is an uploaded .html file.</p>
+      </div>
+      <div class="grid grid-2">
+        <label class="field">
+          <span class="field-label">Company name <span class="req" aria-hidden="true">*</span></span>
+          <input type="text" name="company_name" autocomplete="organization" spellcheck="false" required>
+        </label>
+        <label class="field">
+          <span class="field-label">Symbol <span class="req" aria-hidden="true">*</span></span>
+          <input type="text" name="symbol" spellcheck="false" required>
+        </label>
+        <div class="field span-2">
+          <label class="field-label" for="file-company_profile">
+            Company profile <span class="note">when uploaded</span>
+          </label>
+          <span class="upload" data-upload="company_profile">
+            <input class="upload-input" id="file-company_profile" type="file"
+                   name="company_profile" accept=".html,text/html"
+                   aria-describedby="file-meta-company_profile">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-company_profile"
+                data-upload-meta="company_profile" aria-live="polite">No file selected</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Analysis reports: each box uploads one .html file, one per heading on the sheet -->
+    <section class="card" aria-labelledby="analysis-title">
+      <div class="card-head">
+        <h2 class="card-title" id="analysis-title">Analysis</h2>
+        <p class="card-note">One .html report per heading &mdash; click a box to upload.</p>
+      </div>
+      <div class="grid grid-2">
+        <div class="field">
+          <label class="field-label" for="file-industry_profile">Industry profile</label>
+          <span class="upload" data-upload="industry_profile">
+            <input class="upload-input" id="file-industry_profile" type="file"
+                   name="industry_profile" accept=".html,text/html"
+                   aria-describedby="file-meta-industry_profile">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-industry_profile"
+                data-upload-meta="industry_profile" aria-live="polite">No file selected</span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="file-company_position">Company position</label>
+          <span class="upload" data-upload="company_position">
+            <input class="upload-input" id="file-company_position" type="file"
+                   name="company_position" accept=".html,text/html"
+                   aria-describedby="file-meta-company_position">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-company_position"
+                data-upload-meta="company_position" aria-live="polite">No file selected</span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="file-financial_quality">Financial quality</label>
+          <span class="upload" data-upload="financial_quality">
+            <input class="upload-input" id="file-financial_quality" type="file"
+                   name="financial_quality" accept=".html,text/html"
+                   aria-describedby="file-meta-financial_quality">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-financial_quality"
+                data-upload-meta="financial_quality" aria-live="polite">No file selected</span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="file-strategy_vision">Strategy &amp; vision</label>
+          <span class="upload" data-upload="strategy_vision">
+            <input class="upload-input" id="file-strategy_vision" type="file"
+                   name="strategy_vision" accept=".html,text/html"
+                   aria-describedby="file-meta-strategy_vision">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-strategy_vision"
+                data-upload-meta="strategy_vision" aria-live="polite">No file selected</span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="file-alpha_analysis">Alpha analysis</label>
+          <span class="upload" data-upload="alpha_analysis">
+            <input class="upload-input" id="file-alpha_analysis" type="file"
+                   name="alpha_analysis" accept=".html,text/html"
+                   aria-describedby="file-meta-alpha_analysis">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-alpha_analysis"
+                data-upload-meta="alpha_analysis" aria-live="polite">No file selected</span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="file-beta_analysis">Beta analysis</label>
+          <span class="upload" data-upload="beta_analysis">
+            <input class="upload-input" id="file-beta_analysis" type="file"
+                   name="beta_analysis" accept=".html,text/html"
+                   aria-describedby="file-meta-beta_analysis">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-beta_analysis"
+                data-upload-meta="beta_analysis" aria-live="polite">No file selected</span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="file-antifragile_analysis">Anti-fragile analysis</label>
+          <span class="upload" data-upload="antifragile_analysis">
+            <input class="upload-input" id="file-antifragile_analysis" type="file"
+                   name="antifragile_analysis" accept=".html,text/html"
+                   aria-describedby="file-meta-antifragile_analysis">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-antifragile_analysis"
+                data-upload-meta="antifragile_analysis" aria-live="polite">No file selected</span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="file-wl_l_analysis">WL-L analysis</label>
+          <span class="upload" data-upload="wl_l_analysis">
+            <input class="upload-input" id="file-wl_l_analysis" type="file"
+                   name="wl_l_analysis" accept=".html,text/html"
+                   aria-describedby="file-meta-wl_l_analysis">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-wl_l_analysis"
+                data-upload-meta="wl_l_analysis" aria-live="polite">No file selected</span>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- Scores: three /100 fields, rank, then the prices and ratios calc.js works from -->
+    <section class="card" aria-labelledby="scores-title">
+      <div class="card-head">
+        <h2 class="card-title" id="scores-title">Scores</h2>
+        <p class="card-note">Marks out of 100 &mdash; ratios are worked out below.</p>
+      </div>
+      <div class="grid grid-4">
+        <label class="field">
+          <span class="field-label">Alpha score <span class="note">/100</span></span>
+          <span class="control">
+            <input type="number" name="alpha_score" min="0" max="100" step="0.01" inputmode="decimal">
+            <span class="suffix" aria-hidden="true">/100</span>
+          </span>
+        </label>
+        <label class="field">
+          <span class="field-label">Beta score <span class="note">/100</span></span>
+          <span class="control">
+            <input type="number" name="beta_score" min="0" max="100" step="0.01" inputmode="decimal">
+            <span class="suffix" aria-hidden="true">/100</span>
+          </span>
+        </label>
+        <label class="field">
+          <span class="field-label">Anti-fragile score <span class="note">/100</span></span>
+          <span class="control">
+            <input type="number" name="antifragile_score" min="0" max="100" step="0.01" inputmode="decimal">
+            <span class="suffix" aria-hidden="true">/100</span>
+          </span>
+        </label>
+        <label class="field">
+          <span class="field-label">Rank</span>
+          <input type="number" name="rank" min="1" step="1" inputmode="numeric">
+        </label>
+      </div>
+
+      <p class="subhead">Prices</p>
+      <div class="grid grid-3">
+        <label class="field">
+          <span class="field-label">Current price</span>
+          <input type="number" name="current_price" step="0.01" inputmode="decimal">
+        </label>
+        <label class="field">
+          <span class="field-label">Target price</span>
+          <input type="number" name="target_price" step="0.01" inputmode="decimal">
+        </label>
+        <label class="field">
+          <span class="field-label">Bad price</span>
+          <input type="number" name="bad_price" step="0.01" inputmode="decimal">
+        </label>
+      </div>
+
+      <p class="subhead">WL ratios</p>
+      <div class="grid grid-2">
+        <label class="field">
+          <span class="field-label">WL ratio base <span class="note">calculated</span></span>
+          <input type="text" id="wl-ratio-base" name="wl_ratio_base" readonly aria-describedby="ratio-hint">
+        </label>
+        <label class="field">
+          <span class="field-label">WL ratio optimistic <span class="note">calculated</span></span>
+          <input type="text" id="wl-ratio-optimistic" name="wl_ratio_optimistic" readonly aria-describedby="ratio-hint">
+        </label>
+      </div>
+      <p class="field-hint" id="ratio-hint">
+        Both ratios fill in once current, target and bad price are set; leave a price blank and the
+        box stays empty.
+      </p>
+    </section>
+
+    <!-- Three optional follow-up reports, matching the tail of the sheet -->
+    <section class="card" aria-labelledby="extra-title">
+      <div class="card-head">
+        <h2 class="card-title" id="extra-title">Additional analysis</h2>
+        <p class="card-note">Optional &mdash; one extra .html report per angle.</p>
+      </div>
+      <div class="grid grid-3">
+        <div class="field">
+          <label class="field-label" for="file-additional_analysis_1">
+            Additional analysis 1 <span class="note">optional</span>
+          </label>
+          <span class="upload" data-upload="additional_analysis_1">
+            <input class="upload-input" id="file-additional_analysis_1" type="file"
+                   name="additional_analysis_1" accept=".html,text/html"
+                   aria-describedby="file-meta-additional_analysis_1">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-additional_analysis_1"
+                data-upload-meta="additional_analysis_1" aria-live="polite">No file selected</span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="file-additional_analysis_2">
+            Additional analysis 2 <span class="note">optional</span>
+          </label>
+          <span class="upload" data-upload="additional_analysis_2">
+            <input class="upload-input" id="file-additional_analysis_2" type="file"
+                   name="additional_analysis_2" accept=".html,text/html"
+                   aria-describedby="file-meta-additional_analysis_2">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-additional_analysis_2"
+                data-upload-meta="additional_analysis_2" aria-live="polite">No file selected</span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="file-additional_analysis_3">
+            Additional analysis 3 <span class="note">optional</span>
+          </label>
+          <span class="upload" data-upload="additional_analysis_3">
+            <input class="upload-input" id="file-additional_analysis_3" type="file"
+                   name="additional_analysis_3" accept=".html,text/html"
+                   aria-describedby="file-meta-additional_analysis_3">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-additional_analysis_3"
+                data-upload-meta="additional_analysis_3" aria-live="polite">No file selected</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sticky action bar: live status on the left, Reset + amber Submit on the right -->
+    <div class="sheet-footer">
+      <p class="calc-hint" id="calc-hint" role="status">
+        Upload the .html reports, then fill the prices &mdash; every calculation is logged to the console.
+      </p>
+      <div class="buttons">
+        <button class="btn btn-soft" type="reset">Reset</button>
+        <button class="btn btn-amber" type="submit">Submit</button>
+      </div>
+    </div>
+  </form>
+</main>
+
+<!-- All maths lives in calc.js so the page only deals with markup -->
+<script src="calc.js" defer></script>
+</body>
+</html>
+

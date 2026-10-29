@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Company desk</title>
+<style>
+  /* ---------- Design tokens: identical palette to home.html ---------- */
+  :root {
+    --bg: #eef2f8;
+    --surface: #ffffff;
+    --ink: #17233b;
+    --ink-soft: #5c6a84;
+    --ink-faint: #8d99ae;
+    --line: #dde4ef;
+    --amber: #ffd24a;
+    --amber-strong: #e5a900;
+    --amber-soft: #fff5cc;
+    --amber-ink: #3a2c00;
+    --amber-line: #f0d47a;
+    --blue-soft: #e4edfa;
+    --blue-line: #c2d4ee;
+    --blue-ink: #21456f;
+    --focus: #2f6fed;
+    --radius: 14px;
+    --shadow-sm: 0 1px 2px rgba(23, 35, 59, .06);
+    --shadow-md: 0 14px 32px -24px rgba(23, 35, 59, .55);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.4;
+    background:
+      radial-gradient(1100px 560px at 50% -260px, #ffffff 0%, rgba(255, 255, 255, 0) 72%),
+      var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ---------- One centred column: top bar, sign-in card, cookie note ---------- */
+  .shell {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 18px;
+    width: min(430px, 100% - 36px);
+    min-height: 100%;
+    margin-inline: auto;
+    padding: 30px 0 48px;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 0 2px;
+  }
+
+  .welcome {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .welcome .mark {
+    flex: none;
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    background: linear-gradient(140deg, var(--amber) 0%, var(--amber-strong) 100%);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .welcome .label { color: var(--ink-soft); font-size: 15px; font-weight: 500; }
+
+  .stamp {
+    flex: none;
+    padding: 6px 12px;
+    border: 1px dashed var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .65);
+    color: var(--ink-faint);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  /* ---------- Sign-in card ---------- */
+  .panel {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+  }
+
+  .panel-head {
+    padding: 20px 22px 18px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #fbfcff 0%, #f4f8fd 100%);
+  }
+
+  .panel-title {
+    margin: 0 0 4px;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+  }
+
+  .panel-hint {
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: 13px;
+  }
+
+  .panel-body {
+    display: grid;
+    gap: 18px;
+    padding: 22px 22px 0;
+  }
+
+  /* Label sits above each box, as specified */
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .field-label {
+    color: var(--ink-soft);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .field input {
+    width: 100%;
+    height: 48px;
+    padding: 0 14px;
+    border: 1px solid #d5dfee;
+    border-radius: 11px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+
+  .field input:hover { border-color: #c3d1e5; }
+
+  .field input:focus {
+    outline: none;
+    border-color: var(--amber-strong);
+    box-shadow: 0 0 0 4px rgba(255, 210, 74, .32);
+  }
+
+  .field input::placeholder { color: var(--ink-faint); }
+
+  /* ---------- Footer: status line, then the amber sign-in button at the bottom ---------- */
+  .panel-foot { padding: 20px 22px 22px; }
+
+  .status {
+    min-height: 19px;
+    margin: 0 0 14px;
+    color: var(--ink-soft);
+    font-size: 13.5px;
+  }
+
+  .status[data-state="busy"] { color: var(--ink-faint); }
+  .status[data-state="success"] { color: #1c7a45; font-weight: 600; }
+  .status[data-state="error"] { color: #b3261e; font-weight: 600; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    font: inherit;
+    cursor: pointer;
+    user-select: none;
+    transition: transform .16s ease, box-shadow .16s ease, opacity .16s ease;
+  }
+
+  .btn-amber {
+    width: 100%;
+    height: 54px;
+    border: 1px solid #cf9b00;
+    background: linear-gradient(150deg, var(--amber) 0%, var(--amber-strong) 100%);
+    color: var(--amber-ink);
+    font-size: 16.5px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    box-shadow: var(--shadow-md);
+  }
+
+  .btn-amber:not([disabled]):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 30px -20px rgba(224, 168, 0, .95);
+  }
+
+  .btn-amber:not([disabled]):active { transform: translateY(0); }
+
+  .btn-amber[disabled] {
+    cursor: progress;
+    opacity: .78;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .btn:focus-visible {
+    outline: 3px solid rgba(47, 111, 237, .38);
+    outline-offset: 2px;
+  }
+
+  .foot-note {
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: 12.5px;
+    text-align: center;
+  }
+
+  .foot-note code {
+    color: var(--blue-ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+  }
+
+  @media (max-width: 560px) {
+    .shell { width: min(430px, 100% - 24px); padding: 20px 0 32px; }
+    .stamp { display: none; }
+    .panel-head { padding: 18px 18px 16px; }
+    .panel-body { padding: 18px 18px 0; }
+    .panel-foot { padding: 18px 18px 18px; }
+    .panel-title { font-size: 20px; }
+    .btn-amber { height: 50px; font-size: 16px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+
+<body>
+<main class="shell">
+  <!-- Top bar mirrors home.html so the sign-in page reads as the same app -->
+  <header class="topbar">
+    <div class="welcome">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="label">Company desk</span>
+    </div>
+    <span class="stamp">Sign in</span>
+  </header>
+
+  <!--
+    Posts password / username as application/x-www-form-urlencoded to
+    https://api.kidsfunbank.ca/signin. The script below intercepts the submit,
+    stores the returned token in the session_id cookie and opens home.html.
+  -->
+  <form
+    class="panel"
+    id="signin-form"
+    method="post"
+    action="https://api.kidsfunbank.ca/signin"
+    aria-labelledby="signin-title">
+
+    <div class="panel-head">
+      <h1 class="panel-title" id="signin-title">Sign in</h1>
+      <p class="panel-hint">Use the analyst account you were given.</p>
+    </div>
+
+    <div class="panel-body">
+      <label class="field">
+        <span class="field-label">username</span>
+        <input
+          id="username"
+          name="username"
+          type="text"
+          autocomplete="username"
+          autocapitalize="none"
+          spellcheck="false"
+          required
+          autofocus>
+      </label>
+
+      <label class="field">
+        <span class="field-label">password</span>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required>
+      </label>
+    </div>
+
+    <div class="panel-foot">
+      <p class="status" id="signin-status" aria-live="polite"></p>
+      <button class="btn btn-amber" id="signin-button" type="submit">Sign in</button>
+    </div>
+  </form>
+
+  <p class="foot-note">
+    The session token is kept in the <code>session_id</code> cookie.
+  </p>
+</main>
+
+<script>
+/**
+ * ---------------------------------------------------------------------------
+ * Sign-in contract
+ *   POST https://api.kidsfunbank.ca/signin
+ *        body (application/x-www-form-urlencoded): password=<password>&username=<username>
+ *        -> anything whose token can be found by toToken(), e.g. {"token": "..."}
+ * The token is written to the session_id cookie, then the browser is sent to
+ * home.html.
+ * ---------------------------------------------------------------------------
+ */
+const API_BASE = 'https://api.kidsfunbank.ca';
+const ENDPOINTS = { signin: '/signin' };
+const REQUEST_TIMEOUT_MS = 10000;
+
+/** Cookie that carries the token, and the page opened after a successful sign-in. */
+const SESSION_COOKIE = 'session_id';
+const NEXT_PAGE = 'home.html';
+const REDIRECT_DELAY_MS = 600;
+
+/**
+ * Site the cookie is widened to. The pages and the API live on different hosts
+ * (api.kidsfunbank.ca), so a host-only cookie would never reach the API. When the
+ * page is served from another domain (localhost, file://, a preview host) the
+ * Domain attribute is dropped, because browsers reject a foreign domain.
+ */
+const COOKIE_SITE = 'kidsfunbank.ca';
+
+/** Response field names accepted as the session token, in priority order. */
+const TOKEN_KEYS = [
+  'token', 'session_id', 'sessionId', 'session', 'access_token',
+  'accessToken', 'jwt', 'id_token'
+];
+
+/**
+ * Input: an HTTP status (0 when there was no usable response) and the server's
+ *        own message, when it sent one.
+ * Output: a SignInError instance.
+ * Action: keeps status and server message apart from the generic text.
+ * Role: the single error type thrown by signIn(); handleSubmit() switches on it.
+ */
+class SignInError extends Error {
+  constructor(status, serverMessage) {
+    super(serverMessage || 'HTTP ' + status);
+    this.name = 'SignInError';
+    this.status = status;
+    this.serverMessage = serverMessage || '';
+  }
+}
+
+/**
+ * Input: raw JSON body (or plain text) returned by /signin.
+ * Output: the token as a trimmed string, or '' when none was found.
+ * Action: accepts a bare token string, the TOKEN_KEYS on the object itself, and
+ *         tokens nested inside data / session / user / result.
+ * Role: normalizes the response so the page never depends on one exact shape.
+ */
+function toToken(payload) {
+  if (typeof payload === 'string') return payload.trim();
+  if (!payload || typeof payload !== 'object') return '';
+
+  for (const key of TOKEN_KEYS) {
+    const value = payload[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+
+  for (const key of ['data', 'session', 'user', 'result']) {
+    const nested = toToken(payload[key]);
+    if (nested) return nested;
+  }
+
+  return '';
+}
+
+/**
+ * Input: a parsed payload, a plain-text body, or a validation-error array.
+ * Output: the first human-readable message found, or '' when there is none.
+ * Action: reads the usual error fields (detail / message / error_description /
+ *         error / msg), recurses into nested objects and arrays, and ignores
+ *         anything that looks like an HTML page.
+ * Role: surfaces whatever the API says instead of a bare status code.
+ */
+function toMessage(payload) {
+  if (typeof payload === 'string') {
+    const text = payload.trim();
+    if (!text || text.indexOf('<') !== -1) return '';
+    return text.slice(0, 200);
+  }
+
+  if (Array.isArray(payload)) {
+    for (const item of payload) {
+      const found = toMessage(item);
+      if (found) return found;
+    }
+    return '';
+  }
+
+  if (!payload || typeof payload !== 'object') return '';
+
+  for (const key of ['detail', 'message', 'error_description', 'error', 'msg']) {
+    const found = toMessage(payload[key]);
+    if (found) return found;
+  }
+
+  return '';
+}
+
+/**
+ * Input: a response body as text.
+ * Output: the parsed JSON value, or the original text when it is not JSON.
+ * Action: swallows the SyntaxError of JSON.parse.
+ * Role: lets signIn() cope with a JSON token, a plain token or a plain-text error.
+ */
+function parsePayload(text) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    return text;
+  }
+}
+
+/**
+ * Input: the sign-in form element.
+ * Output: { username, password } — username trimmed, password exactly as typed.
+ * Action: reads the two named controls, tolerating a missing control.
+ * Role: single place that harvests the credentials, so the POST body and the
+ *       validation both use the same values.
+ */
+function readCredentials(form) {
+  const username = form.elements.username;
+  const password = form.elements.password;
+
+  return {
+    username: username ? username.value.trim() : '',
+    password: password ? password.value : ''
+  };
+}
+
+/**
+ * Input: a cookie name.
+ * Output: the decoded cookie value, or '' when the cookie is absent.
+ * Action: splits document.cookie on "; " and matches the name exactly.
+ * Role: the read half of the session helpers (console probe; also lets another
+ *       page check whether a session already exists).
+ */
+function readCookie(name) {
+  const jar = document.cookie ? document.cookie.split('; ') : [];
+
+  for (const entry of jar) {
+    const at = entry.indexOf('=');
+    if (at > -1 && entry.slice(0, at) === name) {
+      return decodeURIComponent(entry.slice(at + 1));
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Input: none.
+ * Output: 'kidsfunbank.ca' when the page is served from that site, otherwise ''.
+ * Action: compares the current hostname with COOKIE_SITE and its subdomains.
+ * Role: decides whether the cookie may be widened so api.kidsfunbank.ca sees it.
+ */
+function cookieDomain() {
+  const host = window.location.hostname.toLowerCase();
+  if (host === COOKIE_SITE || host.endsWith('.' + COOKIE_SITE)) return COOKIE_SITE;
+  return '';
+}
+
+/**
+ * Input: the session token.
+ * Output: the cookie attributes that were written (never the token itself).
+ * Action: writes session_id=<token> with Path=/, SameSite=Lax, a Domain only when
+ *         the page is on kidsfunbank.ca, and Secure when the page is https. The
+ *         value is URL-encoded and no expiry is set, so the cookie lasts for the
+ *         browser session and the server keeps control of the token lifetime.
+ * Role: the only place that writes document.cookie.
+ */
+function writeSession(token) {
+  const parts = [
+    SESSION_COOKIE + '=' + encodeURIComponent(token),
+    'Path=/',
+    'SameSite=Lax'
+  ];
+
+  const domain = cookieDomain();
+  if (domain) parts.push('Domain=' + domain);
+  if (window.location.protocol === 'https:') parts.push('Secure');
+
+  document.cookie = parts.join('; ');
+  return parts.slice(1).join('; ');
+}
+
+/**
+ * Input: { username, password }.
+ * Output: the parsed /signin response body.
+ * Action: POSTs the credentials URL-encoded (password first, matching the wire
+ *         format), asks for JSON, aborts after REQUEST_TIMEOUT_MS, and throws a
+ *         SignInError that carries the server message on any non-2xx status.
+ * Role: the single network helper of the page.
+ */
+async function signIn(credentials) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const body = new URLSearchParams();
+    body.set('password', credentials.password);
+    body.set('username', credentials.username);
+
+    const response = await fetch(API_BASE + ENDPOINTS.signin, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString(),
+      cache: 'no-store',
+      credentials: 'omit',
+      signal: controller.signal
+    });
+
+    const text = await response.text();
+    const payload = text ? parsePayload(text) : null;
+
+    if (!response.ok) {
+      throw new SignInError(response.status, toMessage(payload) || toMessage(text));
+    }
+
+    return payload;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Input: message text and a state name (busy / success / error / '').
+ * Output: none.
+ * Action: writes the text with textContent and tags the element with data-state
+ *         so the stylesheet can colour it.
+ * Role: the page's only feedback channel (it is an aria-live region).
+ */
+function setStatus(message, state) {
+  const status = document.getElementById('signin-status');
+  if (!status) return;
+
+  status.textContent = message;
+  status.dataset.state = state || '';
+}
+
+/**
+ * Input: true while the request is in flight, false when it failed.
+ * Output: none.
+ * Action: disables the button, swaps its label and sets aria-busy on the form.
+ * Role: prevents a double submit and tells the user something is happening.
+ */
+function setBusy(busy) {
+  const button = document.getElementById('signin-button');
+  const form = document.getElementById('signin-form');
+  if (!button || !form) return;
+
+  button.disabled = busy;
+  button.textContent = busy ? 'Signing in\u2026' : 'Sign in';
+  form.setAttribute('aria-busy', busy ? 'true' : 'false');
+}
+
+/**
+ * Input: any error thrown by signIn() or toToken().
+ * Output: a short sentence to show under the fields.
+ * Action: prefers the server's own message, then maps 401/403 to a credentials
+ *         hint, a timeout to its own text, and anything else to "unreachable".
+ * Role: keeps every failure mode explicit without leaking internals.
+ */
+function describeError(error) {
+  if (error && error.name === 'SignInError') {
+    if (error.serverMessage) return error.serverMessage;
+    if (error.status === 401 || error.status === 403) {
+      return 'That username and password did not match.';
+    }
+    return 'Sign-in failed (HTTP ' + error.status + '). Please try again.';
+  }
+
+  if (error && error.name === 'AbortError') {
+    return 'The sign-in service took too long to answer. Please try again.';
+  }
+
+  return 'Could not reach the sign-in service. Check your connection and try again.';
+}
+
+/**
+ * Input: the form's submit event.
+ * Output: none (async).
+ * Action: cancels the native post, POSTs the credentials, writes the returned
+ *         token to the session_id cookie and opens home.html after a short pause;
+ *         on failure it re-enables the button, reports the reason and puts the
+ *         caret back in the password box for 401/403.
+ * Role: the whole behaviour of the page behind the Sign in button.
+ */
+async function handleSubmit(event) {
+  event.preventDefault();
+
+  const form = event.currentTarget;
+  const credentials = readCredentials(form);
+  const passwordField = form.elements.password;
+
+  setStatus('Signing in\u2026', 'busy');
+  setBusy(true);
+
+  try {
+    const token = toToken(await signIn(credentials));
+    if (!token) throw new SignInError(0, 'The server did not return a session token.');
+
+    const attributes = writeSession(token);
+    console.log('[signin] ' + SESSION_COOKIE + ' written (' + attributes + ')');
+
+    setStatus('Signed in \u2014 opening the dashboard\u2026', 'success');
+    window.setTimeout(() => window.location.assign(NEXT_PAGE), REDIRECT_DELAY_MS);
+  } catch (error) {
+    const message = describeError(error);
+    console.warn('[signin] ' + message, error);
+
+    setStatus(message, 'error');
+    setBusy(false);
+
+    if (error && (error.status === 401 || error.status === 403) && passwordField) {
+      passwordField.focus();
+      passwordField.select();
+    }
+  }
+}
+
+/**
+ * Input: none (the script sits at the end of <body>, so the DOM already exists).
+ * Output: none.
+ * Action: wires the submit handler, clears the status line and exposes the
+ *         helpers on window.loginPage for console checks.
+ * Role: single entry point for the page.
+ */
+function init() {
+  const form = document.getElementById('signin-form');
+  if (form) form.addEventListener('submit', handleSubmit);
+
+  setStatus('', '');
+
+  window.loginPage = {
+    toToken,
+    toMessage,
+    readCredentials,
+    signIn,
+    writeSession,
+    readCookie
+  };
+}
+
+init();
+</script>
+</body>
+</html>
