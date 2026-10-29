@@ -270,8 +270,9 @@
 
   <!--
     Posts password / username as application/x-www-form-urlencoded to
-    https://api.kidsfunbank.ca/signin. The script below intercepts the submit,
-    stores the returned token in the session_id cookie and opens home.html.
+    https://api.kidsfunbank.ca/signin. The API answers with the username and the
+    HttpOnly session_id cookie; the script below intercepts the submit, then
+    opens home.html.
   -->
   <form
     class="panel"
@@ -317,7 +318,8 @@
   </form>
 
   <p class="foot-note">
-    The session token is kept in the <code>session_id</code> cookie.
+    The session is kept in the <code>session_id</code> cookie the API sets
+    (<code>HttpOnly</code>, so this page cannot read it).
   </p>
 </main>
 
@@ -327,33 +329,25 @@
  * Sign-in contract
  *   POST https://api.kidsfunbank.ca/signin
  *        body (application/x-www-form-urlencoded): password=<password>&username=<username>
- *        -> anything whose token can be found by toToken(), e.g. {"token": "..."}
- * The token is written to the session_id cookie, then the browser is sent to
- * home.html.
+ *        -> 200 {"username": "<name>"} plus the session, which travels only as
+ *           Set-Cookie: session_id=...; HttpOnly; Secure; SameSite=lax; Path=/
+ * The cookie belongs to the server: it is HttpOnly, so JavaScript can neither
+ * read it nor overwrite it, and the browser keeps it because this fetch asks for
+ * credentials: 'include' (the API answers with Access-Control-Allow-Credentials).
+ * The body carries just the username, so nothing is stored here — the page
+ * confirms who signed in and opens home.html.
  * ---------------------------------------------------------------------------
  */
 const API_BASE = 'https://api.kidsfunbank.ca';
 const ENDPOINTS = { signin: '/signin' };
 const REQUEST_TIMEOUT_MS = 10000;
 
-/** Cookie that carries the token, and the page opened after a successful sign-in. */
-const SESSION_COOKIE = 'session_id';
+/** Page opened after a successful sign-in, after a short pause. */
 const NEXT_PAGE = 'home.html';
 const REDIRECT_DELAY_MS = 600;
 
-/**
- * Site the cookie is widened to. The pages and the API live on different hosts
- * (api.kidsfunbank.ca), so a host-only cookie would never reach the API. When the
- * page is served from another domain (localhost, file://, a preview host) the
- * Domain attribute is dropped, because browsers reject a foreign domain.
- */
-const COOKIE_SITE = 'kidsfunbank.ca';
-
-/** Response field names accepted as the session token, in priority order. */
-const TOKEN_KEYS = [
-  'token', 'session_id', 'sessionId', 'session', 'access_token',
-  'accessToken', 'jwt', 'id_token'
-];
+/** Response field names accepted as the signed-in username, in priority order. */
+const USERNAME_KEYS = ['username', 'user', 'name'];
 
 /**
  * Input: an HTTP status (0 when there was no usable response) and the server's
@@ -373,22 +367,23 @@ class SignInError extends Error {
 
 /**
  * Input: raw JSON body (or plain text) returned by /signin.
- * Output: the token as a trimmed string, or '' when none was found.
- * Action: accepts a bare token string, the TOKEN_KEYS on the object itself, and
- *         tokens nested inside data / session / user / result.
- * Role: normalizes the response so the page never depends on one exact shape.
+ * Output: the username as a trimmed string, or '' when none was found.
+ * Action: accepts a bare string, USERNAME_KEYS on the object itself, and a
+ *         username nested one level under data / user / result.
+ * Role: the only value worth reading from the response — the session itself is
+ *       the HttpOnly session_id cookie, which JavaScript never sees.
  */
-function toToken(payload) {
+function toUsername(payload) {
   if (typeof payload === 'string') return payload.trim();
   if (!payload || typeof payload !== 'object') return '';
 
-  for (const key of TOKEN_KEYS) {
+  for (const key of USERNAME_KEYS) {
     const value = payload[key];
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
 
-  for (const key of ['data', 'session', 'user', 'result']) {
-    const nested = toToken(payload[key]);
+  for (const key of ['data', 'user', 'result']) {
+    const nested = toUsername(payload[key]);
     if (nested) return nested;
   }
 
@@ -445,9 +440,11 @@ function parsePayload(text) {
 /**
  * Input: the sign-in form element.
  * Output: { username, password } — username trimmed, password exactly as typed.
- * Action: reads the two named controls, tolerating a missing control.
+ * Action: reads the two named controls, tolerating a missing control. Both are
+ *         required by /signin (password first in the body); the username is also
+ *         what the response echoes back, so it doubles as the display name.
  * Role: single place that harvests the credentials, so the POST body and the
- *       validation both use the same values.
+ *       confirmation line both use the same values.
  */
 function readCredentials(form) {
   const username = form.elements.username;
@@ -460,67 +457,13 @@ function readCredentials(form) {
 }
 
 /**
- * Input: a cookie name.
- * Output: the decoded cookie value, or '' when the cookie is absent.
- * Action: splits document.cookie on "; " and matches the name exactly.
- * Role: the read half of the session helpers (console probe; also lets another
- *       page check whether a session already exists).
- */
-function readCookie(name) {
-  const jar = document.cookie ? document.cookie.split('; ') : [];
-
-  for (const entry of jar) {
-    const at = entry.indexOf('=');
-    if (at > -1 && entry.slice(0, at) === name) {
-      return decodeURIComponent(entry.slice(at + 1));
-    }
-  }
-
-  return '';
-}
-
-/**
- * Input: none.
- * Output: 'kidsfunbank.ca' when the page is served from that site, otherwise ''.
- * Action: compares the current hostname with COOKIE_SITE and its subdomains.
- * Role: decides whether the cookie may be widened so api.kidsfunbank.ca sees it.
- */
-function cookieDomain() {
-  const host = window.location.hostname.toLowerCase();
-  if (host === COOKIE_SITE || host.endsWith('.' + COOKIE_SITE)) return COOKIE_SITE;
-  return '';
-}
-
-/**
- * Input: the session token.
- * Output: the cookie attributes that were written (never the token itself).
- * Action: writes session_id=<token> with Path=/, SameSite=Lax, a Domain only when
- *         the page is on kidsfunbank.ca, and Secure when the page is https. The
- *         value is URL-encoded and no expiry is set, so the cookie lasts for the
- *         browser session and the server keeps control of the token lifetime.
- * Role: the only place that writes document.cookie.
- */
-function writeSession(token) {
-  const parts = [
-    SESSION_COOKIE + '=' + encodeURIComponent(token),
-    'Path=/',
-    'SameSite=Lax'
-  ];
-
-  const domain = cookieDomain();
-  if (domain) parts.push('Domain=' + domain);
-  if (window.location.protocol === 'https:') parts.push('Secure');
-
-  document.cookie = parts.join('; ');
-  return parts.slice(1).join('; ');
-}
-
-/**
  * Input: { username, password }.
- * Output: the parsed /signin response body.
+ * Output: the parsed /signin response body ({ username }).
  * Action: POSTs the credentials URL-encoded (password first, matching the wire
- *         format), asks for JSON, aborts after REQUEST_TIMEOUT_MS, and throws a
- *         SignInError that carries the server message on any non-2xx status.
+ *         format) with credentials: 'include', so the browser accepts and stores
+ *         the HttpOnly session_id cookie the API sets; aborts after
+ *         REQUEST_TIMEOUT_MS and throws a SignInError carrying the server message
+ *         on any non-2xx status.
  * Role: the single network helper of the page.
  */
 async function signIn(credentials) {
@@ -540,7 +483,7 @@ async function signIn(credentials) {
       },
       body: body.toString(),
       cache: 'no-store',
-      credentials: 'omit',
+      credentials: 'include',
       signal: controller.signal
     });
 
@@ -589,7 +532,7 @@ function setBusy(busy) {
 }
 
 /**
- * Input: any error thrown by signIn() or toToken().
+ * Input: any error thrown by signIn().
  * Output: a short sentence to show under the fields.
  * Action: prefers the server's own message, then maps 401/403 to a credentials
  *         hint, a timeout to its own text, and anything else to "unreachable".
@@ -614,10 +557,11 @@ function describeError(error) {
 /**
  * Input: the form's submit event.
  * Output: none (async).
- * Action: cancels the native post, POSTs the credentials, writes the returned
- *         token to the session_id cookie and opens home.html after a short pause;
- *         on failure it re-enables the button, reports the reason and puts the
- *         caret back in the password box for 401/403.
+ * Action: cancels the native post, POSTs the credentials, reads the username out
+ *         of the answer — the session itself is the HttpOnly session_id cookie the
+ *         API has just set, so nothing is written here — and opens home.html after
+ *         a short pause; on failure it re-enables the button, reports the reason
+ *         and puts the caret back in the password box for 401/403.
  * Role: the whole behaviour of the page behind the Sign in button.
  */
 async function handleSubmit(event) {
@@ -631,13 +575,11 @@ async function handleSubmit(event) {
   setBusy(true);
 
   try {
-    const token = toToken(await signIn(credentials));
-    if (!token) throw new SignInError(0, 'The server did not return a session token.');
+    // Only the username comes back; the session_id cookie is the server's doing.
+    const username = toUsername(await signIn(credentials)) || credentials.username;
+    console.log('[signin] session_id cookie set by the API for ' + username);
 
-    const attributes = writeSession(token);
-    console.log('[signin] ' + SESSION_COOKIE + ' written (' + attributes + ')');
-
-    setStatus('Signed in \u2014 opening the dashboard\u2026', 'success');
+    setStatus('Signed in as ' + username + ' \u2014 opening the dashboard\u2026', 'success');
     window.setTimeout(() => window.location.assign(NEXT_PAGE), REDIRECT_DELAY_MS);
   } catch (error) {
     const message = describeError(error);
@@ -667,12 +609,10 @@ function init() {
   setStatus('', '');
 
   window.loginPage = {
-    toToken,
+    toUsername,
     toMessage,
     readCredentials,
-    signIn,
-    writeSession,
-    readCookie
+    signIn
   };
 }
 

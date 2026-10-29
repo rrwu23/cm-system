@@ -108,6 +108,38 @@
     text-transform: uppercase;
   }
 
+  /* Stamp + sign-out share the right-hand slot of the top bar */
+  .topbar-right {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Sign out: POSTs /logout so the API clears the HttpOnly session_id cookie */
+  .signout {
+    padding: 7px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease, opacity .15s ease;
+  }
+
+  .signout:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  .signout:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .signout[disabled] { opacity: .6; cursor: progress; }
+
   /* ---------- Company picker: yellow textbox + yellow "View company" ---------- */
   .picker {
     display: flex;
@@ -393,7 +425,10 @@
       <span class="label">Welcome,</span>
       <span class="name" id="username" data-state="loading">&hellip;</span>
     </div>
-    <span class="stamp">Company desk</span>
+    <div class="topbar-right">
+      <span class="stamp">Company desk</span>
+      <button class="signout" id="signout-button" type="button">Sign out</button>
+    </div>
   </header>
 
   <!-- Yellow textbox + matching "View company" action (links point to # for now) -->
@@ -459,20 +494,27 @@
 /**
  * ---------------------------------------------------------------------------
  * Data contract (the backend is still being built, so every read is best-effort)
- *   GET https://api.kidsfunbank.ca/getuser      -> current username
- *   GET https://api.kidsfunbank.ca/getcompanies -> rows for the analysis table
+ *   GET  https://api.kidsfunbank.ca/getuser      -> { username, logged_in_at, expires_at }
+ *   GET  https://api.kidsfunbank.ca/getcompanies -> rows for the analysis table
+ *   POST https://api.kidsfunbank.ca/logout       -> clears the session_id cookie
+ *   (missing endpoints, or no session -> 401 "Not authenticated")
  * Only ENDPOINTS.companies needs touching once the table endpoint has a name.
- * The base host is the same one login.html posts to, so the session_id cookie
- * written at sign-in travels with these requests.
+ * The session is the HttpOnly session_id cookie the API set at sign-in: those
+ * requests carry it only with credentials: 'include', because the page and the
+ * API are different hosts (www vs api.kidsfunbank.ca).
  * ---------------------------------------------------------------------------
  */
 const API_BASE = 'https://api.kidsfunbank.ca';
 const ENDPOINTS = {
   user: '/getuser',
-  companies: '/getcompanies'
+  companies: '/getcompanies',
+  logout: '/logout'
 };
 const REQUEST_TIMEOUT_MS = 10000;
 const EMPTY = '\u2014';
+
+/** Page shown when the API says the session is missing or expired. */
+const SIGNED_OUT_PAGE = 'login.html';
 
 /**
  * Column map for the analysis table, in render order. The static <thead> in the
@@ -577,8 +619,10 @@ function toUsername(payload) {
 /**
  * Input: an API path such as "/getuser".
  * Output: the parsed JSON body.
- * Action: GETs API_BASE + path without caching, aborts after REQUEST_TIMEOUT_MS,
- *         and throws on any non-2xx status.
+ * Action: GETs API_BASE + path with credentials: 'include' — the session is the
+ *         HttpOnly session_id cookie, which a cross-origin request only carries
+ *         when credentials are included — without caching, aborting after
+ *         REQUEST_TIMEOUT_MS, and throws an Error carrying .status on any non-2xx.
  * Role: the single network helper shared by the username and table loaders.
  */
 async function fetchJson(path) {
@@ -589,13 +633,40 @@ async function fetchJson(path) {
       method: 'GET',
       headers: { Accept: 'application/json' },
       cache: 'no-store',
+      credentials: 'include',
       signal: controller.signal
     });
-    if (!response.ok) throw new Error('HTTP ' + response.status);
+    if (!response.ok) {
+      const error = new Error('HTTP ' + response.status);
+      error.status = response.status;
+      throw error;
+    }
     return await response.json();
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Input: an error thrown by fetchJson().
+ * Output: true when the API refused the request for lack of a session (401/403).
+ * Action: reads the .status fetchJson() attaches to its errors.
+ * Role: separates "signed out" (back to login.html) from "endpoint not ready"
+ *       (keep the page and fall back to guest).
+ */
+function isSignedOut(error) {
+  return Boolean(error) && (error.status === 401 || error.status === 403);
+}
+
+/**
+ * Input: none.
+ * Output: none (it navigates).
+ * Action: replaces the page with login.html.
+ * Role: the single exit for an absent or expired session, called instead of
+ *       rendering a dashboard nobody is signed in for.
+ */
+function leaveForSignIn() {
+  window.location.replace(SIGNED_OUT_PAGE);
 }
 
 /**
@@ -693,9 +764,10 @@ function renderTable(rows) {
 /**
  * Input: none.
  * Output: none.
- * Action: GETs /getuser and writes the username into the welcome line, falling back
- *         to "guest" with an explanatory tooltip when the request fails.
- * Role: personalizes the top bar without blocking the rest of the page.
+ * Action: GETs /getuser and writes the username into the welcome line; sends the
+ *         visitor back to login.html when the API answers 401/403 (no session),
+ *         and otherwise falls back to "guest" with an explanatory tooltip.
+ * Role: personalizes the top bar and doubles as the session check for the page.
  */
 async function loadUser() {
   const name = document.getElementById('username');
@@ -706,6 +778,11 @@ async function loadUser() {
     name.textContent = username || 'guest';
     name.dataset.state = username ? 'ready' : 'empty';
   } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+
     name.textContent = 'guest';
     name.dataset.state = 'offline';
     name.title = 'Could not reach ' + API_BASE + ENDPOINTS.user;
@@ -715,8 +792,9 @@ async function loadUser() {
 /**
  * Input: none.
  * Output: none.
- * Action: GETs the company list, renders it, and shows an error row with a retry
- *         button when the endpoint is missing or unreachable.
+ * Action: GETs the company list, renders it, sends the visitor to login.html on
+ *         401/403, and shows an error row with a retry button when the endpoint is
+ *         missing or unreachable.
  * Role: main data loader for the analysis table.
  */
 async function loadCompanies() {
@@ -724,24 +802,64 @@ async function loadCompanies() {
   try {
     renderTable(toRows(await fetchJson(ENDPOINTS.companies)));
   } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+
     setHint(0);
     showState('Company data is not available right now \u2014 the API is still being built.', true);
   }
 }
 
 /**
+ * Input: none (bound to the #signout-button click).
+ * Output: none.
+ * Action: POSTs /logout with credentials: 'include' so the API can expire the
+ *         HttpOnly session_id cookie (JS cannot delete it itself), shows a busy
+ *         label meanwhile, then navigates to login.html whatever the response was.
+ * Role: the only way out of the dashboard, since the cookie is invisible to JS.
+ */
+async function signOut() {
+  const button = document.getElementById('signout-button');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Signing out\u2026';
+  }
+
+  try {
+    await fetch(API_BASE + ENDPOINTS.logout, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include'
+    });
+  } catch (error) {
+    // Offline or blocked: the visitor still leaves, and the next request will
+    // simply come back 401 and route through leaveForSignIn().
+  } finally {
+    window.location.replace(SIGNED_OUT_PAGE);
+  }
+}
+
+/**
  * Input: none (the script sits at the end of <body>, so the DOM already exists).
  * Output: none.
- * Action: starts the username and table reads in parallel.
+ * Action: starts the username and table reads in parallel and wires the sign-out
+ *         button to signOut().
  * Role: single entry point for the page.
  */
 function init() {
   loadUser();
   loadCompanies();
+
+  const signOutButton = document.getElementById('signout-button');
+  if (signOutButton) signOutButton.addEventListener('click', signOut);
 }
 
 init();
 </script>
 </body>
 </html>
+
 

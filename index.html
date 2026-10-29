@@ -108,8 +108,8 @@
 <!--
   Entry point for the bare host (https://www.kidsfunbank.ca/). Static hosting
   serves this file for "/", so it is the only place that can decide where a
-  visitor lands: the dashboard when the session_id cookie is present, the
-  sign-in page otherwise. The card below is a fallback — the script normally
+  visitor lands: the dashboard when the API still accepts the session_id cookie,
+  the sign-in page otherwise. The card below is a fallback — the script normally
   navigates before it is read — and the two links keep the page usable when
   JavaScript is blocked (see <noscript> in <head>).
 -->
@@ -129,57 +129,73 @@
 /**
  * ---------------------------------------------------------------------------
  * Entry point contract
- *   document.cookie has a non-empty session_id -> home.html
- *   otherwise                                  -> login.html
- * The cookie is the one login.html writes (Path=/), so reading it is the whole
- * check. No API call is made here: an expired token still gets the dashboard,
- * which is where the API's 401 is handled.
+ *   GET https://api.kidsfunbank.ca/getuser  with credentials: 'include'
+ *        200                         -> home.html
+ *        anything else / unreachable -> login.html
+ * The session is the session_id cookie the API sets at sign-in. It is HttpOnly
+ * and scoped to the API host, so document.cookie can never see it — asking the
+ * API whether the session is still good is the only honest check. One small
+ * request; its body is never read, only the status.
  * ---------------------------------------------------------------------------
  */
-const SESSION_COOKIE = 'session_id';
+const API_BASE = 'https://api.kidsfunbank.ca';
+const USER_PATH = '/getuser';
+const PROBE_TIMEOUT_MS = 5000;
 const SIGNED_IN_PAGE = 'home.html';
 const SIGNED_OUT_PAGE = 'login.html';
 
 /**
- * Input: a cookie name.
- * Output: the URL-decoded cookie value, or '' when the cookie is absent/empty.
- * Action: splits document.cookie on '; ' and matches the name exactly, so a
- *         neighbour like session_idx= cannot be mistaken for session_id.
- * Role: mirrors readCookie() in login.html — both pages must agree on the format.
+ * Input: none.
+ * Output: true when the API accepts this visitor's session, otherwise false.
+ * Action: GETs /getuser with credentials: 'include' — the only way the HttpOnly
+ *         session_id cookie travels to api.kidsfunbank.ca — waits at most
+ *         PROBE_TIMEOUT_MS, and treats a timeout, a network/CORS failure or any
+ *         non-2xx (a 401 "Not authenticated") as signed out.
+ * Role: replaces the old document.cookie read, which could never see the cookie.
  */
-function readCookie(name) {
-  const jar = document.cookie ? document.cookie.split('; ') : [];
+async function hasSession() {
+  if (typeof fetch !== 'function') return false;
 
-  for (const entry of jar) {
-    const at = entry.indexOf('=');
-    if (at > -1 && entry.slice(0, at) === name) {
-      return decodeURIComponent(entry.slice(at + 1));
-    }
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS) : null;
+
+  try {
+    const response = await fetch(API_BASE + USER_PATH, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include',
+      signal: controller ? controller.signal : undefined
+    });
+    return response.ok;
+  } catch (error) {
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
-
-  return '';
 }
 
 /**
- * Input: the session token, '' when the visitor has none.
+ * Input: whether the session probe succeeded.
  * Output: 'home.html' or 'login.html'.
- * Action: treats any non-empty token as signed in.
+ * Action: maps the boolean to a page name.
  * Role: the single decision point for this page, so the hint text and the
  *       redirect can never disagree.
  */
-function entryPage(token) {
-  return token ? SIGNED_IN_PAGE : SIGNED_OUT_PAGE;
+function entryPage(signedIn) {
+  return signedIn ? SIGNED_IN_PAGE : SIGNED_OUT_PAGE;
 }
 
 /**
  * Input: none.
  * Output: nothing (it navigates).
- * Action: resolves the target from the cookie, updates the hint, then calls
- *         location.replace() so this stub never sits in the Back history.
+ * Action: probes the API, updates the hint, then calls location.replace() so this
+ *         stub never sits in the Back history.
  * Role: runs once at load; everything else in the file is fallback UI.
  */
-function enter() {
-  const page = entryPage(readCookie(SESSION_COOKIE));
+async function enter() {
+  const signedIn = await hasSession();
+  const page = entryPage(signedIn);
   const hint = document.getElementById('entry-hint');
 
   if (hint) {
