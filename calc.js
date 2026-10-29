@@ -6,7 +6,7 @@
  * Output: the ready/error state of every upload card, and a console log of the full
  *         payload after each edit and on submit.
  * Action: reads the form, checks each attached file is HTML, and clamps the four /100
- *         scores, then prints the result. The WL ratios are no longer derived here.
+ *         scores, then prints the result. Nothing is derived from the prices.
  * Role: keeps addcompany.html markup-only; this file is the single place where the
  *       numbers and the upload rules are worked out, so the page and any future API
  *       call share one source.
@@ -30,7 +30,7 @@
     'cyclical_analysis',
     'antifragile_analysis',
     'growth_momentum_analysis',
-    'wl_l_analysis',
+    'scenario_stress_analysis',
     'additional_analysis_1',
     'additional_analysis_2',
     'additional_analysis_3'
