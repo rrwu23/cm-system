@@ -208,7 +208,7 @@
 
   .span-2 { grid-column: span 2; }
 
-  /* Divider label inside a card, e.g. "Prices" / "WL ratios". */
+  /* Divider label inside a card, e.g. "Prices". */
   .subhead {
     display: flex;
     align-items: center;
@@ -301,18 +301,6 @@
     font-weight: 600;
     pointer-events: none;
   }
-
-  /* Calculated ratios are amber-filled and read-only. */
-  .field input[readonly] {
-    background: var(--amber-soft);
-    border-color: var(--amber-line);
-    color: var(--amber-ink);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    cursor: default;
-  }
-
-  .field input[readonly]:focus { box-shadow: 0 0 0 4px rgba(255, 210, 74, .28); }
 
   .field-hint {
     margin: 12px 0 0;
@@ -590,32 +578,32 @@
                 data-upload-meta="strategy_vision" aria-live="polite">No file selected</span>
         </div>
         <div class="field">
-          <label class="field-label" for="file-alpha_analysis">Alpha analysis</label>
-          <span class="upload" data-upload="alpha_analysis">
-            <input class="upload-input" id="file-alpha_analysis" type="file"
-                   name="alpha_analysis" accept=".html,text/html"
-                   aria-describedby="file-meta-alpha_analysis">
+          <label class="field-label" for="file-moat_analysis">Moat analysis</label>
+          <span class="upload" data-upload="moat_analysis">
+            <input class="upload-input" id="file-moat_analysis" type="file"
+                   name="moat_analysis" accept=".html,text/html"
+                   aria-describedby="file-meta-moat_analysis">
             <span class="upload-face" aria-hidden="true">
               <span class="upload-badge">HTML</span>
               <span class="upload-name" data-upload-name>Choose a .html file</span>
             </span>
           </span>
-          <span class="field-hint upload-meta" id="file-meta-alpha_analysis"
-                data-upload-meta="alpha_analysis" aria-live="polite">No file selected</span>
+          <span class="field-hint upload-meta" id="file-meta-moat_analysis"
+                data-upload-meta="moat_analysis" aria-live="polite">No file selected</span>
         </div>
         <div class="field">
-          <label class="field-label" for="file-beta_analysis">Beta analysis</label>
-          <span class="upload" data-upload="beta_analysis">
-            <input class="upload-input" id="file-beta_analysis" type="file"
-                   name="beta_analysis" accept=".html,text/html"
-                   aria-describedby="file-meta-beta_analysis">
+          <label class="field-label" for="file-cyclical_analysis">Cyclical analysis</label>
+          <span class="upload" data-upload="cyclical_analysis">
+            <input class="upload-input" id="file-cyclical_analysis" type="file"
+                   name="cyclical_analysis" accept=".html,text/html"
+                   aria-describedby="file-meta-cyclical_analysis">
             <span class="upload-face" aria-hidden="true">
               <span class="upload-badge">HTML</span>
               <span class="upload-name" data-upload-name>Choose a .html file</span>
             </span>
           </span>
-          <span class="field-hint upload-meta" id="file-meta-beta_analysis"
-                data-upload-meta="beta_analysis" aria-live="polite">No file selected</span>
+          <span class="field-hint upload-meta" id="file-meta-cyclical_analysis"
+                data-upload-meta="cyclical_analysis" aria-live="polite">No file selected</span>
         </div>
         <div class="field">
           <label class="field-label" for="file-antifragile_analysis">Anti-fragile analysis</label>
@@ -630,6 +618,20 @@
           </span>
           <span class="field-hint upload-meta" id="file-meta-antifragile_analysis"
                 data-upload-meta="antifragile_analysis" aria-live="polite">No file selected</span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="file-growth_momentum_analysis">Growth &amp; momentum analysis</label>
+          <span class="upload" data-upload="growth_momentum_analysis">
+            <input class="upload-input" id="file-growth_momentum_analysis" type="file"
+                   name="growth_momentum_analysis" accept=".html,text/html"
+                   aria-describedby="file-meta-growth_momentum_analysis">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-growth_momentum_analysis"
+                data-upload-meta="growth_momentum_analysis" aria-live="polite">No file selected</span>
         </div>
         <div class="field">
           <label class="field-label" for="file-wl_l_analysis">WL-L analysis</label>
@@ -649,24 +651,24 @@
     </section>
 
 
-    <!-- Scores: three /100 fields, rank, then the prices and ratios calc.js works from -->
+    <!-- Scores: four /100 fields plus rank, then the prices the record keeps -->
     <section class="card" aria-labelledby="scores-title">
       <div class="card-head">
         <h2 class="card-title" id="scores-title">Scores</h2>
-        <p class="card-note">Marks out of 100 &mdash; ratios are worked out below.</p>
+        <p class="card-note">Marks out of 100 &mdash; every recalculation is logged to the console.</p>
       </div>
       <div class="grid grid-4">
         <label class="field">
-          <span class="field-label">Alpha score <span class="note">/100</span></span>
+          <span class="field-label">Moat score <span class="note">/100</span></span>
           <span class="control">
-            <input type="number" name="alpha_score" min="0" max="100" step="0.01" inputmode="decimal">
+            <input type="number" name="moat_score" min="0" max="100" step="0.01" inputmode="decimal">
             <span class="suffix" aria-hidden="true">/100</span>
           </span>
         </label>
         <label class="field">
-          <span class="field-label">Beta score <span class="note">/100</span></span>
+          <span class="field-label">Cyclical score <span class="note">/100</span></span>
           <span class="control">
-            <input type="number" name="beta_score" min="0" max="100" step="0.01" inputmode="decimal">
+            <input type="number" name="cyclical_score" min="0" max="100" step="0.01" inputmode="decimal">
             <span class="suffix" aria-hidden="true">/100</span>
           </span>
         </label>
@@ -674,6 +676,13 @@
           <span class="field-label">Anti-fragile score <span class="note">/100</span></span>
           <span class="control">
             <input type="number" name="antifragile_score" min="0" max="100" step="0.01" inputmode="decimal">
+            <span class="suffix" aria-hidden="true">/100</span>
+          </span>
+        </label>
+        <label class="field">
+          <span class="field-label">Growth score <span class="note">/100</span></span>
+          <span class="control">
+            <input type="number" name="growth_score" min="0" max="100" step="0.01" inputmode="decimal">
             <span class="suffix" aria-hidden="true">/100</span>
           </span>
         </label>
@@ -698,22 +707,6 @@
           <input type="number" name="bad_price" step="0.01" inputmode="decimal">
         </label>
       </div>
-
-      <p class="subhead">WL ratios</p>
-      <div class="grid grid-2">
-        <label class="field">
-          <span class="field-label">WL ratio base <span class="note">calculated</span></span>
-          <input type="text" id="wl-ratio-base" name="wl_ratio_base" readonly aria-describedby="ratio-hint">
-        </label>
-        <label class="field">
-          <span class="field-label">WL ratio optimistic <span class="note">calculated</span></span>
-          <input type="text" id="wl-ratio-optimistic" name="wl_ratio_optimistic" readonly aria-describedby="ratio-hint">
-        </label>
-      </div>
-      <p class="field-hint" id="ratio-hint">
-        Both ratios fill in once current, target and bad price are set; leave a price blank and the
-        box stays empty.
-      </p>
     </section>
 
     <!-- Three optional follow-up reports, matching the tail of the sheet -->
@@ -777,7 +770,7 @@
     <!-- Sticky action bar: live status on the left, Reset + amber Submit on the right -->
     <div class="sheet-footer">
       <p class="calc-hint" id="calc-hint" role="status">
-        Upload the .html reports, then fill the prices &mdash; every calculation is logged to the console.
+        Upload the .html reports and fill in the scores &mdash; every calculation is logged to the console.
       </p>
       <div class="buttons">
         <button class="btn btn-soft" type="reset">Reset</button>

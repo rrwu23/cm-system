@@ -1,14 +1,12 @@
 /**
- * calc.js — the score, ratio and upload maths behind addcompany.html.
+ * calc.js — the score and upload maths behind addcompany.html.
  *
  * Input:  the #add-company-form element — the typed numbers plus the .html reports the
  *         user attaches to each analysis box.
- * Output: the two WL ratios rendered into their read-only boxes, the ready/error state of
- *         every upload card, and a console log of the full payload after each edit and
- *         on submit.
- * Action: reads the form, checks each attached file is HTML, clamps the three /100
- *         scores, derives WL-base and WL-optimistic from the three prices, then prints
- *         the result.
+ * Output: the ready/error state of every upload card, and a console log of the full
+ *         payload after each edit and on submit.
+ * Action: reads the form, checks each attached file is HTML, and clamps the four /100
+ *         scores, then prints the result. The WL ratios are no longer derived here.
  * Role: keeps addcompany.html markup-only; this file is the single place where the
  *       numbers and the upload rules are worked out, so the page and any future API
  *       call share one source.
@@ -20,7 +18,6 @@
 
   const FORM_ID = 'add-company-form';
   const HINT_ID = 'calc-hint';
-  const RATIO_IDS = { base: 'wl-ratio-base', optimistic: 'wl-ratio-optimistic' };
 
   // Every analysis box on the sheet is an uploaded .html report, not free text.
   const UPLOAD_FIELDS = [
@@ -29,9 +26,10 @@
     'company_position',
     'financial_quality',
     'strategy_vision',
-    'alpha_analysis',
-    'beta_analysis',
+    'moat_analysis',
+    'cyclical_analysis',
     'antifragile_analysis',
+    'growth_momentum_analysis',
     'wl_l_analysis',
     'additional_analysis_1',
     'additional_analysis_2',
@@ -72,50 +70,6 @@
   function clampScore(value) {
     if (value === null) return null;
     return Math.min(MAX_SCORE, Math.max(0, value));
-  }
-
-  /**
-   * Input: numerator and denominator, both possibly null.
-   * Output: the quotient, or null when the division cannot be done.
-   * Action: bails out on null input, non-finite values, and a zero denominator.
-   * Role: shared safety net for both WL ratios.
-   */
-  function safeDivide(numerator, denominator) {
-    if (numerator === null || denominator === null) return null;
-    if (!Number.isFinite(numerator) || !Number.isFinite(denominator)) return null;
-    if (denominator === 0) return null;
-    return numerator / denominator;
-  }
-
-  /**
-   * Input: two numbers or nulls.
-   * Output: their difference, or null when either side is missing.
-   * Action: guards the subtraction so callers never do maths on null.
-   * Role: keeps the ratio formulas below readable.
-   */
-  function difference(left, right) {
-    if (left === null || right === null) return null;
-    return left - right;
-  }
-
-  /**
-   * Input: { currentPrice, targetPrice, badPrice } — numbers or null.
-   * Output: { base, optimistic } — each a number, or null when it cannot be derived.
-   * Action: applies the sheet's two formulas
-   *           WL-base       = (target - current) / (current - bad)
-   *           WL-optimistic = (target - bad)     / (current - bad)
-   * Role: the core calculation of the page; addcompany.html only shows the result.
-   */
-  function wlRatios(prices) {
-    const current = toNumber(prices.currentPrice);
-    const target = toNumber(prices.targetPrice);
-    const bad = toNumber(prices.badPrice);
-    const denominator = difference(current, bad);
-
-    return {
-      base: safeDivide(difference(target, current), denominator),
-      optimistic: safeDivide(difference(target, bad), denominator)
-    };
   }
 
   /**
@@ -189,7 +143,7 @@
    * Output: a plain object with camelCase keys — numbers where numbers are expected, and
    *         an uploads array holding one metadata entry per attached .html report.
    * Action: reads through FormData (so it follows the markup), trims text, and describes
-   *         the twelve file inputs alongside the typed fields.
+   *         the thirteen file inputs alongside the typed fields.
    * Role: turns the DOM into the data that calculateScores() and the console use.
    */
   function readForm(form) {
@@ -206,9 +160,10 @@
     return {
       companyName: text('company_name'),
       symbol: text('symbol'),
-      alphaScore: toNumber(text('alpha_score')),
-      betaScore: toNumber(text('beta_score')),
+      moatScore: toNumber(text('moat_score')),
+      cyclicalScore: toNumber(text('cyclical_score')),
       antifragileScore: toNumber(text('antifragile_score')),
+      growthScore: toNumber(text('growth_score')),
       rank: toNumber(text('rank')),
       currentPrice: toNumber(text('current_price')),
       targetPrice: toNumber(text('target_price')),
@@ -230,53 +185,30 @@
 
   /**
    * Input: the values object from readForm().
-   * Output: { companyName, symbol, alphaScore, betaScore, antifragileScore,
-   *           wlRatioBase, wlRatioOptimistic, rank, uploads, uploadsValid }.
-   * Action: clamps the three scores to 0..100, rounds the rank to a whole number, asks
-   *         wlRatios() for the two ratios, and flags any upload that is not HTML.
+   * Output: { companyName, symbol, moatScore, cyclicalScore, antifragileScore,
+   *           growthScore, currentPrice, targetPrice, badPrice, rank, uploads,
+   *           uploadsValid }.
+   * Action: clamps the four scores to 0..100, rounds the rank to a whole number, keeps
+   *         the three prices as typed, and flags any upload that is not HTML.
    * Role: the payload the dashboard needs; this is the object that gets logged.
    */
   function calculateScores(values) {
-    const ratios = wlRatios(values);
     const uploads = Array.isArray(values.uploads) ? values.uploads : [];
 
     return {
       companyName: values.companyName,
       symbol: values.symbol,
-      alphaScore: clampScore(toNumber(values.alphaScore)),
-      betaScore: clampScore(toNumber(values.betaScore)),
+      moatScore: clampScore(toNumber(values.moatScore)),
+      cyclicalScore: clampScore(toNumber(values.cyclicalScore)),
       antifragileScore: clampScore(toNumber(values.antifragileScore)),
-      wlRatioBase: ratios.base,
-      wlRatioOptimistic: ratios.optimistic,
+      growthScore: clampScore(toNumber(values.growthScore)),
+      currentPrice: toNumber(values.currentPrice),
+      targetPrice: toNumber(values.targetPrice),
+      badPrice: toNumber(values.badPrice),
       rank: normalizeRank(values.rank),
       uploads: uploads,
       uploadsValid: uploads.every((upload) => upload.valid)
     };
-  }
-
-
-  /**
-   * Input: a ratio number or null.
-   * Output: a two-decimal string, or '' for a ratio that does not exist.
-   * Action: formats without trailing noise.
-   * Role: keeps the read-only boxes empty instead of showing "null".
-   */
-  function formatRatio(value) {
-    return value === null ? '' : value.toFixed(2);
-  }
-
-  /**
-   * Input: the <form> element and a scores object.
-   * Output: nothing.
-   * Action: writes the two ratios into their read-only fields.
-   * Role: the only place the calculated values touch the DOM.
-   */
-  function renderRatios(form, scores) {
-    const base = form.querySelector('#' + RATIO_IDS.base);
-    const optimistic = form.querySelector('#' + RATIO_IDS.optimistic);
-
-    if (base) base.value = formatRatio(scores.wlRatioBase);
-    if (optimistic) optimistic.value = formatRatio(scores.wlRatioOptimistic);
   }
 
   /**
@@ -324,11 +256,13 @@
   function logScores(scores) {
     console.log(LOG_PREFIX + ' scores', scores);
     console.table({
-      alphaScore: scores.alphaScore,
-      betaScore: scores.betaScore,
+      moatScore: scores.moatScore,
+      cyclicalScore: scores.cyclicalScore,
       antifragileScore: scores.antifragileScore,
-      wlRatioBase: scores.wlRatioBase,
-      wlRatioOptimistic: scores.wlRatioOptimistic,
+      growthScore: scores.growthScore,
+      currentPrice: scores.currentPrice,
+      targetPrice: scores.targetPrice,
+      badPrice: scores.badPrice,
       rank: scores.rank
     });
 
@@ -347,13 +281,12 @@
   /**
    * Input: the <form> element.
    * Output: { values, scores } for the current form state.
-   * Action: reads, calculates, paints the ratios and the upload cards.
+   * Action: reads, calculates, and paints the upload cards.
    * Role: one call shared by load, typing, file pick, reset and submit.
    */
   function refresh(form) {
     const values = readForm(form);
     const scores = calculateScores(values);
-    renderRatios(form, scores);
     renderUploads(form, scores.uploads);
     return { values: values, scores: scores };
   }
@@ -361,7 +294,8 @@
   /**
    * Input: the <form> element and the latest scores.
    * Output: nothing.
-   * Action: picks the status message — rejected uploads first, then ratio readiness.
+   * Action: picks the status message — rejected uploads first, then whether any report
+   *         is attached yet.
    * Role: gives on-page feedback that the calculation ran, next to the console output.
    */
   function updateHint(form, scores) {
@@ -370,7 +304,6 @@
 
     const uploads = scores.uploads || [];
     const rejected = uploads.filter((upload) => !upload.valid).length;
-    const ready = scores.wlRatioBase !== null && scores.wlRatioOptimistic !== null;
 
     if (rejected > 0) {
       hint.dataset.state = 'error';
@@ -379,16 +312,17 @@
       return;
     }
 
-    if (ready) {
+    if (uploads.length > 0) {
       hint.dataset.state = 'done';
-      hint.textContent = 'Ratios updated — ' + uploads.length +
+      hint.textContent = uploads.length +
         (uploads.length === 1 ? ' .html report attached' : ' .html reports attached') +
         '; scores are in the console.';
       return;
     }
 
     hint.dataset.state = '';
-    hint.textContent = 'Fill in current, target and bad price to see both ratios.';
+    hint.textContent = 'Attach the .html reports and fill in the scores — every calculation ' +
+      'is logged to the console.';
   }
 
   /**
@@ -462,9 +396,8 @@
 
     recalculate(form, 'initial');
 
-    // Small console handle for ad-hoc checking, e.g. companyCalc.wlRatios({ ... }).
+    // Small console handle for ad-hoc checking, e.g. companyCalc.calculateScores({ ... }).
     window.companyCalc = {
-      wlRatios: wlRatios,
       calculateScores: calculateScores,
       readForm: readForm,
       refresh: refresh,
