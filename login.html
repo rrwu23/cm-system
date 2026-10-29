@@ -336,11 +336,22 @@
  * credentials: 'include' (the API answers with Access-Control-Allow-Credentials).
  * The body carries just the username, so nothing is stored here — the page
  * confirms who signed in and opens home.html.
+ *
+ * On load the page also probes GET https://api.kidsfunbank.ca/getuser (same
+ * credentials, 5s timeout): a 2xx means the visitor already holds a session, so
+ * login.html replaces itself with home.html instead of asking again. Any other
+ * outcome is ignored — the form behaves exactly as before.
  * ---------------------------------------------------------------------------
  */
 const API_BASE = 'https://api.kidsfunbank.ca';
-const ENDPOINTS = { signin: '/signin' };
+const ENDPOINTS = { signin: '/signin', user: '/getuser' };
 const REQUEST_TIMEOUT_MS = 10000;
+
+/**
+ * Timeout for the "is there already a session?" probe. Shorter than a sign-in
+ * because nobody waits on it: the form stays usable while it runs.
+ */
+const SESSION_PROBE_TIMEOUT_MS = 5000;
 
 /** Page opened after a successful sign-in, after a short pause. */
 const NEXT_PAGE = 'home.html';
@@ -348,6 +359,12 @@ const REDIRECT_DELAY_MS = 600;
 
 /** Response field names accepted as the signed-in username, in priority order. */
 const USERNAME_KEYS = ['username', 'user', 'name'];
+
+/**
+ * True while POST /signin is in flight. The boot probe reads it so a slow
+ * /getuser answer cannot navigate away from a sign-in the user just started.
+ */
+let submitting = false;
 
 /**
  * Input: an HTTP status (0 when there was no usable response) and the server's
@@ -501,6 +518,56 @@ async function signIn(credentials) {
 }
 
 /**
+ * Input: none.
+ * Output: true when the API still accepts this browser's session cookie.
+ * Action: GETs API_BASE + ENDPOINTS.user with credentials: 'include' (the only
+ *         way the HttpOnly session_id cookie rides along), cache: 'no-store',
+ *         aborting after SESSION_PROBE_TIMEOUT_MS; any non-2xx, timeout, CORS or
+ *         network failure counts as "not signed in" instead of throwing.
+ * Role: the page's only way to detect an existing session — the cookie is
+ *       unreadable from JavaScript — and the same trick index.html uses to route
+ *       the bare host.
+ */
+async function hasSession() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SESSION_PROBE_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(API_BASE + ENDPOINTS.user, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include',
+      signal: controller.signal
+    });
+    return response.ok;
+  } catch (error) {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Input: none.
+ * Output: none (it navigates instead).
+ * Action: probes /getuser and, when the API accepts the session, replaces this
+ *         page with NEXT_PAGE via location.replace (so Back does not bounce here
+ *         again). Every other outcome is silent: no status line, no console
+ *         warning, and no navigation while a sign-in is in flight.
+ * Role: turns a typed or bookmarked login.html into a door for signed-in
+ *       visitors, so they land on the dashboard in one hop.
+ */
+async function leaveIfSignedIn() {
+  if (submitting) return;
+  if (!(await hasSession())) return;
+
+  if (submitting) return;
+  console.log('[login] session already active \u2014 opening ' + NEXT_PAGE);
+  window.location.replace(NEXT_PAGE);
+}
+
+/**
  * Input: message text and a state name (busy / success / error / '').
  * Output: none.
  * Action: writes the text with textContent and tags the element with data-state
@@ -573,6 +640,7 @@ async function handleSubmit(event) {
 
   setStatus('Signing in\u2026', 'busy');
   setBusy(true);
+  submitting = true;
 
   try {
     // Only the username comes back; the session_id cookie is the server's doing.
@@ -585,6 +653,7 @@ async function handleSubmit(event) {
     const message = describeError(error);
     console.warn('[signin] ' + message, error);
 
+    submitting = false;
     setStatus(message, 'error');
     setBusy(false);
 
@@ -598,8 +667,9 @@ async function handleSubmit(event) {
 /**
  * Input: none (the script sits at the end of <body>, so the DOM already exists).
  * Output: none.
- * Action: wires the submit handler, clears the status line and exposes the
- *         helpers on window.loginPage for console checks.
+ * Action: wires the submit handler, clears the status line, exposes the helpers
+ *         on window.loginPage for console checks, and fires the /getuser probe so
+ *         a signed-in visitor is handed straight to NEXT_PAGE.
  * Role: single entry point for the page.
  */
 function init() {
@@ -612,8 +682,13 @@ function init() {
     toUsername,
     toMessage,
     readCredentials,
-    signIn
+    signIn,
+    hasSession
   };
+
+  // Runs in the background: a visitor who already holds a session never has to
+  // read (let alone use) this form.
+  leaveIfSignedIn();
 }
 
 init();
