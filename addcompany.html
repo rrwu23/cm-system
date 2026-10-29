@@ -257,7 +257,8 @@
     font-weight: 700;
   }
 
-  .field input {
+  .field input,
+  .field select {
     width: 100%;
     min-width: 0;
     padding: 12px 14px;
@@ -270,15 +271,18 @@
     transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
   }
 
-  .field input { height: 46px; }
+  .field input,
+  .field select { height: 46px; }
 
   .field input[type="number"] {
     font-variant-numeric: tabular-nums;
   }
 
-  .field input:hover { border-color: #c3d1e5; }
+  .field input:hover,
+  .field select:hover { border-color: #c3d1e5; }
 
-  .field input:focus {
+  .field input:focus,
+  .field select:focus {
     outline: none;
     border-color: var(--amber-strong);
     box-shadow: 0 0 0 4px rgba(255, 210, 74, .32);
@@ -286,10 +290,75 @@
 
   .field input::placeholder { color: var(--ink-faint); }
 
+  /* Rank is a letter picked from a list, so the box gets a chevron of its own. */
+  .field select {
+    padding-right: 36px;
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: #fff;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
+      linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+    background-position: calc(100% - 19px) 50%, calc(100% - 14px) 50%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    cursor: pointer;
+  }
+
   /* Suffix such as "/100" or "×" pinned inside the input. */
   .control { position: relative; }
 
   .control input { padding-right: 56px; }
+
+  /* ---------- Score stepper: one click = one point up or down ---------- */
+  .score-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .score-row .control {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* Two stacked buttons fill the 46px height of the input beside them. */
+  .stepper {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .step-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 21px;
+    padding: 0;
+    border: 1px solid #d5dfee;
+    border-radius: 7px;
+    background: var(--blue-soft);
+    color: var(--blue-ink);
+    font: inherit;
+    font-size: 9px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease;
+  }
+
+  .step-btn:hover { background: #d8e5f8; border-color: var(--blue-line); }
+
+  .step-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+  /* Dashed out at the ends of the 0..100 range, so a click cannot overshoot. */
+  .step-btn:disabled {
+    background: #f4f7fc;
+    border-color: var(--line);
+    color: var(--ink-faint);
+    cursor: not-allowed;
+  }
 
   .control .suffix {
     position: absolute;
@@ -656,40 +725,84 @@
     <section class="card" aria-labelledby="scores-title">
       <div class="card-head">
         <h2 class="card-title" id="scores-title">Scores</h2>
-        <p class="card-note">Marks out of 100 &mdash; every recalculation is logged to the console.</p>
+        <p class="card-note">Whole marks out of 100 &mdash; &#9650; / &#9660; move a score by one. Rank is A&ndash;F.</p>
       </div>
       <div class="grid grid-4">
         <label class="field">
           <span class="field-label">Moat score <span class="note">/100</span></span>
-          <span class="control">
-            <input type="number" name="moat_score" min="0" max="100" step="0.01" inputmode="decimal">
-            <span class="suffix" aria-hidden="true">/100</span>
+          <span class="score-row">
+            <span class="control">
+              <input id="score-moat_score" type="number" name="moat_score" min="0" max="100"
+                     step="1" inputmode="numeric">
+              <span class="suffix" aria-hidden="true">/100</span>
+            </span>
+            <span class="stepper">
+              <button class="step-btn" type="button" data-step-for="moat_score" data-step="1"
+                      aria-controls="score-moat_score" aria-label="Increase moat score by 1">&#9650;</button>
+              <button class="step-btn" type="button" data-step-for="moat_score" data-step="-1"
+                      aria-controls="score-moat_score" aria-label="Decrease moat score by 1">&#9660;</button>
+            </span>
           </span>
         </label>
         <label class="field">
           <span class="field-label">Cyclical score <span class="note">/100</span></span>
-          <span class="control">
-            <input type="number" name="cyclical_score" min="0" max="100" step="0.01" inputmode="decimal">
-            <span class="suffix" aria-hidden="true">/100</span>
+          <span class="score-row">
+            <span class="control">
+              <input id="score-cyclical_score" type="number" name="cyclical_score" min="0" max="100"
+                     step="1" inputmode="numeric">
+              <span class="suffix" aria-hidden="true">/100</span>
+            </span>
+            <span class="stepper">
+              <button class="step-btn" type="button" data-step-for="cyclical_score" data-step="1"
+                      aria-controls="score-cyclical_score" aria-label="Increase cyclical score by 1">&#9650;</button>
+              <button class="step-btn" type="button" data-step-for="cyclical_score" data-step="-1"
+                      aria-controls="score-cyclical_score" aria-label="Decrease cyclical score by 1">&#9660;</button>
+            </span>
           </span>
         </label>
         <label class="field">
           <span class="field-label">Anti-fragile score <span class="note">/100</span></span>
-          <span class="control">
-            <input type="number" name="antifragile_score" min="0" max="100" step="0.01" inputmode="decimal">
-            <span class="suffix" aria-hidden="true">/100</span>
+          <span class="score-row">
+            <span class="control">
+              <input id="score-antifragile_score" type="number" name="antifragile_score" min="0" max="100"
+                     step="1" inputmode="numeric">
+              <span class="suffix" aria-hidden="true">/100</span>
+            </span>
+            <span class="stepper">
+              <button class="step-btn" type="button" data-step-for="antifragile_score" data-step="1"
+                      aria-controls="score-antifragile_score" aria-label="Increase anti-fragile score by 1">&#9650;</button>
+              <button class="step-btn" type="button" data-step-for="antifragile_score" data-step="-1"
+                      aria-controls="score-antifragile_score" aria-label="Decrease anti-fragile score by 1">&#9660;</button>
+            </span>
           </span>
         </label>
         <label class="field">
           <span class="field-label">Growth score <span class="note">/100</span></span>
-          <span class="control">
-            <input type="number" name="growth_score" min="0" max="100" step="0.01" inputmode="decimal">
-            <span class="suffix" aria-hidden="true">/100</span>
+          <span class="score-row">
+            <span class="control">
+              <input id="score-growth_score" type="number" name="growth_score" min="0" max="100"
+                     step="1" inputmode="numeric">
+              <span class="suffix" aria-hidden="true">/100</span>
+            </span>
+            <span class="stepper">
+              <button class="step-btn" type="button" data-step-for="growth_score" data-step="1"
+                      aria-controls="score-growth_score" aria-label="Increase growth score by 1">&#9650;</button>
+              <button class="step-btn" type="button" data-step-for="growth_score" data-step="-1"
+                      aria-controls="score-growth_score" aria-label="Decrease growth score by 1">&#9660;</button>
+            </span>
           </span>
         </label>
         <label class="field">
-          <span class="field-label">Rank</span>
-          <input type="number" name="rank" min="1" step="1" inputmode="numeric">
+          <span class="field-label">Rank <span class="note">A&ndash;F</span></span>
+          <select name="rank">
+            <option value="">Select a grade</option>
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+            <option value="D">D</option>
+            <option value="E">E</option>
+            <option value="F">F</option>
+          </select>
         </label>
       </div>
 

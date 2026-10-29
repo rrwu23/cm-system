@@ -5,9 +5,11 @@
  *         user attaches to each analysis box.
  * Output: the ready/error state of every upload card, a console log of the full payload
  *         after each edit, and a POST to /addcompany when Submit is pressed.
- * Action: reads the form, checks each attached file is HTML, clamps the four /100 scores,
- *         prints the result, then posts every filled-in control to /addcompany as
- *         multipart/form-data, keyed by the sheet's own `name` attributes.
+ * Action: reads the form, checks each attached file is HTML, keeps the four /100 scores as
+ *         whole marks (0..100, nudged one point at a time by the ▲/▼ buttons), checks the
+ *         rank is a letter from A to F, prints the result, then posts every filled-in
+ *         control to /addcompany as multipart/form-data, keyed by the sheet's own `name`
+ *         attributes.
  * Role: keeps addcompany.html markup-only; this file is the single place where the
  *       numbers, the upload rules and the one network call live.
  *
@@ -42,7 +44,19 @@
   const HTML_NAME = /\.html?$/i;
   const HTML_TYPES = ['text/html', 'application/xhtml+xml'];
 
+  // The four /100 marks: whole numbers, each with a ▲ / ▼ button that moves it by one point.
+  const SCORE_FIELDS = [
+    { field: 'moat_score', key: 'moatScore' },
+    { field: 'cyclical_score', key: 'cyclicalScore' },
+    { field: 'antifragile_score', key: 'antifragileScore' },
+    { field: 'growth_score', key: 'growthScore' }
+  ];
+  // Rank is a letter grade the user picks from the Rank list, never a number.
+  const GRADES = ['A', 'B', 'C', 'D', 'E', 'F'];
+
   const MAX_SCORE = 100;
+  const MIN_SCORE = 0;
+  const SCORE_STEP = 1;
   const DEBOUNCE_MS = 200;
   const LOG_PREFIX = '[calc]';
 
@@ -67,14 +81,16 @@
   }
 
   /**
-   * Input: a number or null.
-   * Output: the same number limited to 0..100, or null when there is no number.
-   * Action: clamps both ends while keeping decimals.
-   * Role: stops entered scores like 140 or -5 from reaching the dashboard.
+   * Input: a raw score — a number, a numeric string, or null.
+   * Output: a whole number inside 0..100, or null when there is no number.
+   * Action: converts with toNumber(), rounds to the nearest whole mark, then clamps both ends.
+   * Role: the sheet records integers only, so 55.5 becomes 56, 140 becomes 100 and any
+   *       decimal typed by hand can never reach the dashboard.
    */
-  function clampScore(value) {
-    if (value === null) return null;
-    return Math.min(MAX_SCORE, Math.max(0, value));
+  function normalizeScore(value) {
+    const number = toNumber(value);
+    if (number === null) return null;
+    return Math.min(MAX_SCORE, Math.max(MIN_SCORE, Math.round(number)));
   }
 
   /**
@@ -148,7 +164,8 @@
    * Output: a plain object with camelCase keys — numbers where numbers are expected, and
    *         an uploads array holding one metadata entry per attached .html report.
    * Action: reads through FormData (so it follows the markup), trims text, and describes
-   *         the thirteen file inputs alongside the typed fields.
+   *         the thirteen file inputs alongside the typed fields. The rank stays a string,
+   *         because it is the letter picked from the Rank list.
    * Role: turns the DOM into the data that calculateScores() and the console use.
    */
   function readForm(form) {
@@ -169,7 +186,7 @@
       cyclicalScore: toNumber(text('cyclical_score')),
       antifragileScore: toNumber(text('antifragile_score')),
       growthScore: toNumber(text('growth_score')),
-      rank: toNumber(text('rank')),
+      rank: text('rank'),
       currentPrice: toNumber(text('current_price')),
       targetPrice: toNumber(text('target_price')),
       badPrice: toNumber(text('bad_price')),
@@ -178,14 +195,16 @@
   }
 
   /**
-   * Input: a rank value — number, numeric string, or null.
-   * Output: a whole number of at least 1, or null when unavailable.
-   * Action: converts, rounds and floors at 1.
-   * Role: keeps the rank column of the dashboard a usable integer.
+   * Input: a rank value — normally the letter from the Rank select.
+   * Output: an upper-case grade 'A'..'F', or null when the value is not one of them.
+   * Action: keeps only strings, trims and upper-cases them, then checks them against GRADES.
+   * Role: the one rank rule on the sheet; the letter travels unchanged to the dashboard.
    */
-  function normalizeRank(value) {
-    const number = toNumber(value);
-    return number === null ? null : Math.max(1, Math.round(number));
+  function normalizeGrade(value) {
+    if (typeof value !== 'string') return null;
+
+    const grade = value.trim().toUpperCase();
+    return GRADES.indexOf(grade) === -1 ? null : grade;
   }
 
   /**
@@ -193,8 +212,9 @@
    * Output: { companyName, symbol, moatScore, cyclicalScore, antifragileScore,
    *           growthScore, currentPrice, targetPrice, badPrice, rank, uploads,
    *           uploadsValid }.
-   * Action: clamps the four scores to 0..100, rounds the rank to a whole number, keeps
-   *         the three prices as typed, and flags any upload that is not HTML.
+   * Action: rounds and clamps the four scores to whole 0..100 marks, keeps the rank only
+   *         when it is a real A–F grade, keeps the three prices as typed, and flags any
+   *         upload that is not HTML.
    * Role: the payload the dashboard needs; this is the object that gets logged.
    */
   function calculateScores(values) {
@@ -203,14 +223,14 @@
     return {
       companyName: values.companyName,
       symbol: values.symbol,
-      moatScore: clampScore(toNumber(values.moatScore)),
-      cyclicalScore: clampScore(toNumber(values.cyclicalScore)),
-      antifragileScore: clampScore(toNumber(values.antifragileScore)),
-      growthScore: clampScore(toNumber(values.growthScore)),
+      moatScore: normalizeScore(values.moatScore),
+      cyclicalScore: normalizeScore(values.cyclicalScore),
+      antifragileScore: normalizeScore(values.antifragileScore),
+      growthScore: normalizeScore(values.growthScore),
       currentPrice: toNumber(values.currentPrice),
       targetPrice: toNumber(values.targetPrice),
       badPrice: toNumber(values.badPrice),
-      rank: normalizeRank(values.rank),
+      rank: normalizeGrade(values.rank),
       uploads: uploads,
       uploadsValid: uploads.every((upload) => upload.valid)
     };
@@ -289,6 +309,103 @@
   }
 
   /**
+   * Input: the <form> element and the `name` of a field.
+   * Output: the matching control, or null when the page has no such field.
+   * Action: asks the form's own element collection first, then falls back to a name selector.
+   * Role: one lookup shared by the ▲ / ▼ stepper and the integer normaliser.
+   */
+  function findControl(form, field) {
+    const collection = form.elements;
+    if (collection && typeof collection.namedItem === 'function') {
+      const control = collection.namedItem(field);
+      if (control) return control;
+    }
+    return form.querySelector('[name="' + field + '"]');
+  }
+
+  /**
+   * Input: the <form> element, a score field name ('moat_score' …) and a step (+1 or -1).
+   * Output: the new whole score, or null when nothing changed.
+   * Action: reads the field, moves it exactly one point, clamps it to 0..100 and writes the
+   *         integer back; an empty field starts at 1 when stepping up and stays empty when
+   *         stepping down. Then recalculates, so the hint and console follow the click.
+   * Role: the ▲ / ▼ buttons — one click is always one whole mark.
+   */
+  function stepScore(form, field, delta) {
+    const input = findControl(form, field);
+    if (!input) return null;
+
+    const step = delta < 0 ? -SCORE_STEP : SCORE_STEP;
+    const current = normalizeScore(input.value);
+    const next = current === null
+      ? (step > 0 ? MIN_SCORE + SCORE_STEP : null)
+      : normalizeScore(current + step);
+
+    if (next === null || next === current) return null;
+
+    input.value = String(next);
+    recalculate(form, 'stepped');
+    return next;
+  }
+
+  /**
+   * Input: the <form> element and the latest scores object.
+   * Output: nothing.
+   * Action: disables ▲ once a score reads 100 and ▼ at 0 (or while the box is still empty),
+   *         tolerating a page without the buttons.
+   * Role: shows where the 0..100 range ends instead of ignoring the click in silence.
+   */
+  function syncSteppers(form, scores) {
+    SCORE_FIELDS.forEach(function (entry) {
+      const value = scores[entry.key];
+      const up = form.querySelector('[data-step-for="' + entry.field + '"][data-step="1"]');
+      const down = form.querySelector('[data-step-for="' + entry.field + '"][data-step="-1"]');
+
+      if (up) up.disabled = value !== null && value >= MAX_SCORE;
+      if (down) down.disabled = value === null || value <= MIN_SCORE;
+    });
+  }
+
+  /**
+   * Input: the <form> element.
+   * Output: nothing.
+   * Action: rewrites every score box that holds a value as a whole mark inside 0..100
+   *         (55.5 → 56) and empties a box that holds no number at all.
+   * Role: keeps the number boxes integral, so the browser's step="1" check never blocks
+   *       Submit over a stray decimal the user typed.
+   */
+  function normalizeScoreInputs(form) {
+    SCORE_FIELDS.forEach(function (entry) {
+      const input = findControl(form, entry.field);
+      if (!input || input.value === '') return;
+
+      const value = normalizeScore(input.value);
+      input.value = value === null ? '' : String(value);
+    });
+  }
+
+  /**
+   * Input: the <form> element and a click event.
+   * Output: nothing.
+   * Action: finds the nearest ▲ / ▼ button and applies its data-step to its
+   *         data-step-for field; clicks anywhere else are ignored.
+   * Role: lets one listener serve all four steppers, so the markup stays declarative.
+   */
+  function handleStepClick(form, event) {
+    const target = event.target;
+    if (!target || typeof target.closest !== 'function') return;
+
+    const button = target.closest('[data-step-for]');
+    if (!button) return;
+
+    const field = button.getAttribute('data-step-for');
+    const delta = toNumber(button.getAttribute('data-step'));
+    if (!field || delta === null || delta === 0) return;
+
+    stepScore(form, field, delta);
+  }
+
+  /**
    * Input: a scores object.
    * Output: nothing.
    * Action: prints one labelled log line, a table of the numeric scores, a table of the
@@ -323,13 +440,15 @@
   /**
    * Input: the <form> element.
    * Output: { values, scores } for the current form state.
-   * Action: reads, calculates, and paints the upload cards.
-   * Role: one call shared by load, typing, file pick, reset and submit.
+   * Action: reads, calculates, paints the upload cards, and marks the ▲ / ▼ buttons that
+   *         have reached the end of the 0..100 range.
+   * Role: one call shared by load, typing, file pick, stepper click, reset and submit.
    */
   function refresh(form) {
     const values = readForm(form);
     const scores = calculateScores(values);
     renderUploads(form, scores.uploads);
+    syncSteppers(form, scores);
     return { values: values, scores: scores };
   }
 
@@ -479,7 +598,7 @@
   /**
    * Input: none.
    * Output: nothing.
-   * Action: finds the form, attaches input/change/reset/submit listeners, calculates
+   * Action: finds the form, attaches input/change/click/reset/submit listeners, calculates
    *         once on load, exposes helpers on window.companyCalc.
    * Role: entry point of the file; runs after the DOM is parsed (defer).
    */
@@ -494,8 +613,15 @@
       scheduleRecalculate(form);
     });
 
+    // Rounding on change keeps a typed 55.5 from tripping the browser's step="1" check.
     form.addEventListener('change', function () {
+      normalizeScoreInputs(form);
       recalculate(form, 'changed');
+    });
+
+    // One delegated listener serves all eight ▲ / ▼ buttons.
+    form.addEventListener('click', function (event) {
+      handleStepClick(form, event);
     });
 
     form.addEventListener('reset', function () {
@@ -515,6 +641,9 @@
       refresh: refresh,
       buildSubmission: buildSubmission,
       submitForm: submitForm,
+      stepScore: stepScore,
+      normalizeScore: normalizeScore,
+      normalizeGrade: normalizeGrade,
       describeUpload: describeUpload,
       formatBytes: formatBytes
     };
