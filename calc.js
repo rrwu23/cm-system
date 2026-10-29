@@ -530,6 +530,9 @@
     setSubmitting(form, true);
     showHint('Saving — posting to ' + SUBMIT_PATH + '.', 'warn');
 
+    // multipart/form-data on purpose, and no Content-Type header: a FormData body makes
+    // fetch write `multipart/form-data; boundary=<random>` itself. Hand-setting the header
+    // would drop the boundary, so the server could take the scores but never parse a report.
     return fetch(SUBMIT_PATH, {
       method: 'POST',
       body: buildSubmission(form, scores),
