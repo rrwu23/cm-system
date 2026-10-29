@@ -1,15 +1,15 @@
 /**
- * calc.js — the score and upload maths behind addcompany.html.
+ * calc.js — the score, upload and submit logic behind addcompany.html.
  *
  * Input:  the #add-company-form element — the typed numbers plus the .html reports the
  *         user attaches to each analysis box.
- * Output: the ready/error state of every upload card, and a console log of the full
- *         payload after each edit and on submit.
- * Action: reads the form, checks each attached file is HTML, and clamps the four /100
- *         scores, then prints the result. Nothing is derived from the prices.
+ * Output: the ready/error state of every upload card, a console log of the full payload
+ *         after each edit, and a POST to /addcompany when Submit is pressed.
+ * Action: reads the form, checks each attached file is HTML, clamps the four /100 scores,
+ *         prints the result, then posts every filled-in control to /addcompany as
+ *         multipart/form-data, keyed by the sheet's own `name` attributes.
  * Role: keeps addcompany.html markup-only; this file is the single place where the
- *       numbers and the upload rules are worked out, so the page and any future API
- *       call share one source.
+ *       numbers, the upload rules and the one network call live.
  *
  * Loaded with <script src="calc.js" defer> — no build step, no dependencies.
  */
@@ -18,6 +18,10 @@
 
   const FORM_ID = 'add-company-form';
   const HINT_ID = 'calc-hint';
+  // Where Submit posts the sheet — relative to the page, so it follows whatever host
+  // serves the app. Prefix it with API_BASE if the endpoint ever moves to the api host
+  // the dashboard reads from.
+  const SUBMIT_PATH = '/addcompany';
 
   // Every analysis box on the sheet is an uploaded .html report, not free text.
   const UPLOAD_FIELDS = [
@@ -43,6 +47,7 @@
   const LOG_PREFIX = '[calc]';
 
   let pending = null;
+  let submitting = false;
 
   /**
    * Input: a raw form value — usually a string from FormData, sometimes a number.
@@ -212,6 +217,43 @@
   }
 
   /**
+   * Input: the <form> element and the scores object from calculateScores().
+   * Output: a FormData whose keys are the sheet's own `name` attributes, in sheet order.
+   * Action: appends the identity, the four clamped scores, rank and the three prices, then
+   *         every attached .html report; anything left blank is skipped. The files are read
+   *         back from the form itself, so the browser keeps their real name and MIME type.
+   * Role: the exact request body Submit posts to /addcompany — no renaming layer, so a
+   *       backend field is found by reading the `name` attributes of addcompany.html.
+   */
+  function buildSubmission(form, scores) {
+    const body = new FormData();
+
+    const add = function (name, value) {
+      if (value === null || value === undefined || value === '') return;
+      body.append(name, String(value));
+    };
+
+    add('company_name', scores.companyName);
+    add('symbol', scores.symbol);
+    add('moat_score', scores.moatScore);
+    add('cyclical_score', scores.cyclicalScore);
+    add('antifragile_score', scores.antifragileScore);
+    add('growth_score', scores.growthScore);
+    add('rank', scores.rank);
+    add('current_price', scores.currentPrice);
+    add('target_price', scores.targetPrice);
+    add('bad_price', scores.badPrice);
+
+    const raw = new FormData(form);
+    UPLOAD_FIELDS.forEach(function (field) {
+      const file = raw.get(field);
+      if (isFileLike(file) && file.name) body.append(field, file, file.name);
+    });
+
+    return body;
+  }
+
+  /**
    * Input: the <form> element and the uploads array from readForm().
    * Output: nothing.
    * Action: per file box — writes the file name, a size hint, and a ready/error data-state;
@@ -292,6 +334,21 @@
   }
 
   /**
+   * Input: the text for the sticky-footer status line and its data-state ('', 'done',
+   *        'warn' or 'error').
+   * Output: nothing.
+   * Action: writes #calc-hint, tolerating a page without it.
+   * Role: the single writer for the status line, so form states and request states cannot
+   *       drift apart in wording or colour.
+   */
+  function showHint(text, state) {
+    const hint = document.getElementById(HINT_ID);
+    if (!hint) return;
+    hint.dataset.state = state || '';
+    hint.textContent = text;
+  }
+
+  /**
    * Input: the <form> element and the latest scores.
    * Output: nothing.
    * Action: picks the status message — rejected uploads first, then whether any report
@@ -299,30 +356,97 @@
    * Role: gives on-page feedback that the calculation ran, next to the console output.
    */
   function updateHint(form, scores) {
-    const hint = document.getElementById(HINT_ID);
-    if (!hint) return;
-
     const uploads = scores.uploads || [];
     const rejected = uploads.filter((upload) => !upload.valid).length;
 
     if (rejected > 0) {
-      hint.dataset.state = 'error';
-      hint.textContent = 'Only .html reports are accepted — ' + rejected +
-        (rejected === 1 ? ' upload needs' : ' uploads need') + ' replacing.';
+      showHint('Only .html reports are accepted — ' + rejected +
+        (rejected === 1 ? ' upload needs' : ' uploads need') + ' replacing.', 'error');
       return;
     }
 
     if (uploads.length > 0) {
-      hint.dataset.state = 'done';
-      hint.textContent = uploads.length +
+      showHint(uploads.length +
         (uploads.length === 1 ? ' .html report attached' : ' .html reports attached') +
-        '; scores are in the console.';
+        '; Submit posts the sheet to ' + SUBMIT_PATH + '.', 'done');
       return;
     }
 
-    hint.dataset.state = '';
-    hint.textContent = 'Attach the .html reports and fill in the scores — every calculation ' +
-      'is logged to the console.';
+    showHint('Fill in the scores and attach the .html reports — Submit posts the sheet to ' +
+      SUBMIT_PATH + '.', '');
+  }
+
+  /**
+   * Input: the <form> element and a flag.
+   * Output: nothing.
+   * Action: disables the amber Submit button while a request is in flight.
+   * Role: stops a double click from posting the thirteen reports twice.
+   */
+  function setSubmitting(form, busy) {
+    const button = form.querySelector('button[type="submit"]');
+    if (button) button.disabled = busy;
+  }
+
+  /**
+   * Input: the <form> element.
+   * Output: a Promise that settles once the server answered, or null when nothing was sent.
+   * Action: recalculates, refuses to post while a card is red, builds the body with
+   *         buildSubmission(), POSTs it to /addcompany as multipart/form-data, then reports
+   *         the outcome in the sticky footer.
+   * Role: the only network call in the app — the page itself never navigates away, so a
+   *       failed save leaves every typed value and every chosen report in place.
+   */
+  function submitForm(form) {
+    if (submitting) return Promise.resolve(null);
+    submitting = true;
+
+    const scores = recalculate(form, 'submitted').scores;
+    logScores(scores);
+
+    if (!scores.uploadsValid) {
+      submitting = false;
+      return Promise.resolve(null); // updateHint() already flagged the rejected report
+    }
+
+    setSubmitting(form, true);
+    showHint('Saving — posting to ' + SUBMIT_PATH + '.', 'warn');
+
+    return fetch(SUBMIT_PATH, {
+      method: 'POST',
+      body: buildSubmission(form, scores),
+      credentials: 'include'
+    }).then(function (response) {
+      if (response.ok) {
+        showHint('Saved — ' + SUBMIT_PATH + ' answered HTTP ' + response.status + '.', 'done');
+      } else if (response.status === 401 || response.status === 403) {
+        showHint('Not saved — the session was refused (HTTP ' + response.status +
+          '). Sign in again, then Submit once more.', 'error');
+      } else {
+        showHint('Not saved — ' + SUBMIT_PATH + ' answered HTTP ' + response.status + '.',
+          'error');
+      }
+      return response;
+    }).catch(function (error) {
+      const reason = (error && error.message) ? error.message : 'network error';
+      showHint('Not saved — could not reach ' + SUBMIT_PATH + ' (' + reason + ').', 'error');
+      return null;
+    }).then(function (response) {
+      submitting = false;
+      setSubmitting(form, false);
+      return response;
+    });
+  }
+
+  /**
+   * Input: the submit event.
+   * Output: the Promise from submitForm(), so a caller can wait for the server.
+   * Action: stops the browser's own post, recalculates at once and sends the sheet.
+   * Role: wires the amber Submit button to POST /addcompany.
+   */
+  function handleSubmit(event) {
+    event.preventDefault();
+    window.clearTimeout(pending);
+    return submitForm(event.currentTarget);
   }
 
   /**
@@ -350,18 +474,6 @@
     pending = window.setTimeout(function () {
       recalculate(form, 'edited');
     }, DEBOUNCE_MS);
-  }
-
-  /**
-   * Input: the submit event.
-   * Output: nothing (the page never navigates yet).
-   * Action: stops the default post, recalculates immediately, logs the payload.
-   * Role: wires the amber Submit button to the calculation until an API exists.
-   */
-  function handleSubmit(event) {
-    event.preventDefault();
-    window.clearTimeout(pending);
-    logScores(recalculate(event.currentTarget, 'submitted').scores);
   }
 
   /**
@@ -401,6 +513,8 @@
       calculateScores: calculateScores,
       readForm: readForm,
       refresh: refresh,
+      buildSubmission: buildSubmission,
+      submitForm: submitForm,
       describeUpload: describeUpload,
       formatBytes: formatBytes
     };

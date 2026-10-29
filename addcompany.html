@@ -479,7 +479,8 @@
     <a class="btn btn-ghost" href="home.html">Back to dashboard</a>
   </header>
 
-  <form class="sheet" id="add-company-form" autocomplete="off">
+  <form class="sheet" id="add-company-form" autocomplete="off"
+        action="/addcompany" method="post" enctype="multipart/form-data">
     <!-- Identity: the two required fields, plus the uploaded company profile -->
     <section class="card card-identity" aria-labelledby="identity-title">
       <div class="card-head">
@@ -770,7 +771,7 @@
     <!-- Sticky action bar: live status on the left, Reset + amber Submit on the right -->
     <div class="sheet-footer">
       <p class="calc-hint" id="calc-hint" role="status">
-        Upload the .html reports and fill in the scores &mdash; every calculation is logged to the console.
+        Fill in the scores and attach the .html reports &mdash; Submit posts the sheet to /addcompany.
       </p>
       <div class="buttons">
         <button class="btn btn-soft" type="reset">Reset</button>
