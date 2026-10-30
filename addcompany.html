@@ -565,11 +565,12 @@
       <div class="grid grid-2">
         <label class="field">
           <span class="field-label">Company name <span class="req" aria-hidden="true">*</span></span>
-          <input type="text" name="company_name" autocomplete="organization" spellcheck="false" required>
+          <input type="text" name="company_name" autocomplete="organization" spellcheck="false"
+                 maxlength="300" required>
         </label>
         <label class="field">
           <span class="field-label">Symbol <span class="req" aria-hidden="true">*</span></span>
-          <input type="text" name="symbol" spellcheck="false" required>
+          <input type="text" name="symbol" spellcheck="false" maxlength="32" required>
         </label>
         <div class="field span-2">
           <label class="field-label" for="file-company_profile">
@@ -598,18 +599,18 @@
       </div>
       <div class="grid grid-2">
         <div class="field">
-          <label class="field-label" for="file-industry_profile">Industry profile</label>
-          <span class="upload" data-upload="industry_profile">
-            <input class="upload-input" id="file-industry_profile" type="file"
-                   name="industry_profile" accept=".html,text/html"
-                   aria-describedby="file-meta-industry_profile">
+          <label class="field-label" for="file-industry_map">Industry profile</label>
+          <span class="upload" data-upload="industry_map">
+            <input class="upload-input" id="file-industry_map" type="file"
+                   name="industry_map" accept=".html,text/html"
+                   aria-describedby="file-meta-industry_map">
             <span class="upload-face" aria-hidden="true">
               <span class="upload-badge">HTML</span>
               <span class="upload-name" data-upload-name>Choose a .html file</span>
             </span>
           </span>
-          <span class="field-hint upload-meta" id="file-meta-industry_profile"
-                data-upload-meta="industry_profile" aria-live="polite">No file selected</span>
+          <span class="field-hint upload-meta" id="file-meta-industry_map"
+                data-upload-meta="industry_map" aria-live="polite">No file selected</span>
         </div>
         <div class="field">
           <label class="field-label" for="file-company_position">Company position</label>
@@ -682,18 +683,18 @@
                 data-upload-meta="cyclical_analysis" aria-live="polite">No file selected</span>
         </div>
         <div class="field">
-          <label class="field-label" for="file-antifragile_analysis">Anti-fragile analysis</label>
-          <span class="upload" data-upload="antifragile_analysis">
-            <input class="upload-input" id="file-antifragile_analysis" type="file"
-                   name="antifragile_analysis" accept=".html,text/html"
-                   aria-describedby="file-meta-antifragile_analysis">
+          <label class="field-label" for="file-anti_fragile_analysis">Anti-fragile analysis</label>
+          <span class="upload" data-upload="anti_fragile_analysis">
+            <input class="upload-input" id="file-anti_fragile_analysis" type="file"
+                   name="anti_fragile_analysis" accept=".html,text/html"
+                   aria-describedby="file-meta-anti_fragile_analysis">
             <span class="upload-face" aria-hidden="true">
               <span class="upload-badge">HTML</span>
               <span class="upload-name" data-upload-name>Choose a .html file</span>
             </span>
           </span>
-          <span class="field-hint upload-meta" id="file-meta-antifragile_analysis"
-                data-upload-meta="antifragile_analysis" aria-live="polite">No file selected</span>
+          <span class="field-hint upload-meta" id="file-meta-anti_fragile_analysis"
+                data-upload-meta="anti_fragile_analysis" aria-live="polite">No file selected</span>
         </div>
         <div class="field">
           <label class="field-label" for="file-growth_momentum_analysis">Growth &amp; momentum analysis</label>
@@ -774,20 +775,20 @@
           </span>
         </div>
         <div class="field">
-          <label class="field-label" id="label-antifragile_score" for="score-antifragile_score">
+          <label class="field-label" id="label-anti_fragile_score" for="score-anti_fragile_score">
             Anti-fragile score <span class="note">/100</span>
           </label>
           <span class="score-row">
             <span class="control">
-              <input id="score-antifragile_score" type="number" name="antifragile_score" min="0" max="100"
+              <input id="score-anti_fragile_score" type="number" name="anti_fragile_score" min="0" max="100"
                      step="1" inputmode="numeric">
               <span class="suffix" aria-hidden="true">/100</span>
             </span>
-            <span class="stepper" role="group" aria-labelledby="label-antifragile_score">
-              <button class="step-btn" type="button" data-step-for="antifragile_score" data-step="1"
-                      aria-controls="score-antifragile_score" aria-label="Increase anti-fragile score by 1">&#9650;</button>
-              <button class="step-btn" type="button" data-step-for="antifragile_score" data-step="-1"
-                      aria-controls="score-antifragile_score" aria-label="Decrease anti-fragile score by 1">&#9660;</button>
+            <span class="stepper" role="group" aria-labelledby="label-anti_fragile_score">
+              <button class="step-btn" type="button" data-step-for="anti_fragile_score" data-step="1"
+                      aria-controls="score-anti_fragile_score" aria-label="Increase anti-fragile score by 1">&#9650;</button>
+              <button class="step-btn" type="button" data-step-for="anti_fragile_score" data-step="-1"
+                      aria-controls="score-anti_fragile_score" aria-label="Decrease anti-fragile score by 1">&#9660;</button>
             </span>
           </span>
         </div>
@@ -826,7 +827,7 @@
       <p class="subhead">Prices</p>
       <div class="grid grid-3">
         <label class="field">
-          <span class="field-label">Current price</span>
+          <span class="field-label">Current price <span class="note">reference only</span></span>
           <input type="number" name="current_price" step="0.01" inputmode="decimal">
         </label>
         <label class="field">
@@ -915,7 +916,7 @@
      browser from pairing this markup with a stale cached script (the host sends
      max-age=14400), which would leave the ▲ / ▼ buttons with no click listener. Bump it
      whenever calc.js changes. -->
-<script src="calc.js?v=20261029.4" defer></script>
+<script src="calc.js?v=20261029.5" defer></script>
 </body>
 </html>
 

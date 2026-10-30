@@ -34,13 +34,13 @@
   // Every analysis box on the sheet is an uploaded .html report, not free text.
   const UPLOAD_FIELDS = [
     'company_profile',
-    'industry_profile',
+    'industry_map',
     'company_position',
     'financial_quality',
     'strategy_vision',
     'moat_analysis',
     'cyclical_analysis',
-    'antifragile_analysis',
+    'anti_fragile_analysis',
     'growth_momentum_analysis',
     'scenario_stress_analysis',
     'additional_analysis_1',
@@ -54,7 +54,7 @@
   const SCORE_FIELDS = [
     { field: 'moat_score', key: 'moatScore' },
     { field: 'cyclical_score', key: 'cyclicalScore' },
-    { field: 'antifragile_score', key: 'antifragileScore' },
+    { field: 'anti_fragile_score', key: 'antifragileScore' },
     { field: 'growth_score', key: 'growthScore' }
   ];
   // Rank is a letter grade the user picks from the Rank list, never a number.
@@ -63,6 +63,11 @@
   const MAX_SCORE = 100;
   const MIN_SCORE = 0;
   const SCORE_STEP = 1;
+  // The API's own limits: CompanyIn declares symbol as 1–32 characters and company_name
+  // as up to 300. A longer value cannot be "fixed later" on the server — it answers 422 —
+  // so the payload is cut to the length the model accepts before it is appended.
+  const MAX_SYMBOL = 32;
+  const MAX_NAME = 300;
   const DEBOUNCE_MS = 200;
   const LOG_PREFIX = '[calc]';
 
@@ -190,7 +195,7 @@
       symbol: text('symbol'),
       moatScore: toNumber(text('moat_score')),
       cyclicalScore: toNumber(text('cyclical_score')),
-      antifragileScore: toNumber(text('antifragile_score')),
+      antifragileScore: toNumber(text('anti_fragile_score')),
       growthScore: toNumber(text('growth_score')),
       rank: text('rank'),
       currentPrice: toNumber(text('current_price')),
@@ -243,6 +248,19 @@
   }
 
   /**
+   * Input: a form value and the longest text the API accepts for it.
+   * Output: the value as a string cut to that many characters (null/undefined pass through).
+   * Action: coerces to text, then slices from the front — the part a company name or a
+   *         ticker keeps when it is too long.
+   * Role: keeps the POST /addcompany body inside the length limits of the API's
+   *       CompanyIn model (symbol 1–32, company_name ≤ 300), so a paste cannot 422.
+   */
+  function clip(value, max) {
+    if (value === null || value === undefined) return value;
+    return String(value).slice(0, max);
+  }
+
+  /**
    * Input: the <form> element and the scores object from calculateScores().
    * Output: a FormData whose keys are the sheet's own `name` attributes, in sheet order.
    * Action: appends the identity, the four clamped scores, rank and the three prices, then
@@ -250,9 +268,12 @@
    *         back from the form itself, so the browser keeps their real name and MIME type.
    * Role: the exact request body Submit posts to /addcompany — no renaming layer, so a
    *       backend field is found by reading the `name` attributes of addcompany.html.
-   *       There is deliberately no `date` part: POST /addcompany dates the row itself
-   *       ("date is not part of the form: the row is dated today", per the API docs), so a
-   *       client-sent date would either be ignored or overwrite the server's own stamp.
+   *       Every key here is a field of the API's CompanyUploadIn model, and nothing else:
+   *       anti_fragile_score, anti_fragile_analysis and industry_map are spelled the way the
+   *       model spells them, so a section is never dropped. There is no `date` part (the
+   *       model types `date` as None and the row is dated server-side), and `current_price`
+   *       is not sent because the model has no such field — it knows good_price,
+   *       target_price and bad_price only.
    */
   function buildSubmission(form, scores) {
     const body = new FormData();
@@ -262,14 +283,16 @@
       body.append(name, String(value));
     };
 
-    add('company_name', scores.companyName);
-    add('symbol', scores.symbol);
+    add('company_name', clip(scores.companyName, MAX_NAME));
+    add('symbol', clip(scores.symbol, MAX_SYMBOL));
     add('moat_score', scores.moatScore);
     add('cyclical_score', scores.cyclicalScore);
-    add('antifragile_score', scores.antifragileScore);
+    add('anti_fragile_score', scores.antifragileScore);
     add('growth_score', scores.growthScore);
     add('rank', scores.rank);
-    add('current_price', scores.currentPrice);
+    // No current_price: CompanyUploadIn has no such field, and an unknown field is either
+    // dropped or (with extra="forbid") a 422. The model's three prices are
+    // good_price / target_price / bad_price, so only the two the sheet has are sent.
     add('target_price', scores.targetPrice);
     add('bad_price', scores.badPrice);
 
