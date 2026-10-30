@@ -431,7 +431,8 @@
     </div>
   </header>
 
-  <!-- Yellow textbox + matching "View company" action (links point to # for now) -->
+  <!-- Yellow textbox + matching "View company" link. The href is kept in step with
+       the typed name (viewcompany.html?name=…), so an empty box opens the picker. -->
   <section class="picker" aria-label="Choose a company">
     <label class="sr-only" for="company-input">Company name</label>
     <input
@@ -442,7 +443,7 @@
       placeholder="Company name"
       autocomplete="off"
       spellcheck="false">
-    <a class="btn btn-amber" href="#">View company</a>
+    <a class="btn btn-amber" id="view-company" href="viewcompany.html">View company</a>
   </section>
 
   <!-- Only Add company has a page behind it; the other three stay placeholders -->
@@ -495,10 +496,12 @@
  * ---------------------------------------------------------------------------
  * Data contract (the backend is still being built, so every read is best-effort)
  *   GET  https://api.kidsfunbank.ca/getuser      -> { user_name, ... } for "Welcome, <user>"
- *   GET  https://api.kidsfunbank.ca/getcompanies -> rows for the analysis table
+ *   GET  https://api.kidsfunbank.ca/companies    -> rows for the analysis table
  *   POST https://api.kidsfunbank.ca/logout       -> clears the session_id cookie
  *   (missing endpoints, or no session -> 401 "Not authenticated")
- * Only ENDPOINTS.companies needs touching once the table endpoint has a name.
+ * ENDPOINTS.companies now names the live route: GET /companies answers
+ * {count, companies: [...]} without a session, and each row is the same record
+ * viewcompany.html reads.
  * The session is the HttpOnly session_id cookie the API set at sign-in: those
  * requests carry it only with credentials: 'include', because the page and the
  * API are different hosts (www vs api.kidsfunbank.ca).
@@ -507,7 +510,7 @@
 const API_BASE = 'https://api.kidsfunbank.ca';
 const ENDPOINTS = {
   user: '/getuser',
-  companies: '/getcompanies',
+  companies: '/companies',
   logout: '/logout'
 };
 const REQUEST_TIMEOUT_MS = 10000;
@@ -852,15 +855,38 @@ async function signOut() {
 }
 
 /**
+ * Input: none (reads the #company-input textbox).
+ * Output: none.
+ * Action: points the #view-company link at viewcompany.html, carrying the typed
+ *         name as ?name=… — or at the bare page, which opens the company picker,
+ *         when the box is empty.
+ * Role: gives "View company" a real href, so a click, a middle-click and the
+ *       keyboard all go to the drill-down page, and the target follows the typing.
+ */
+function syncViewLink() {
+  const input = document.getElementById('company-input');
+  const link = document.getElementById('view-company');
+  if (!input || !link) return;
+
+  const name = input.value.trim();
+  link.href = name ? 'viewcompany.html?name=' + encodeURIComponent(name) : 'viewcompany.html';
+}
+
+/**
  * Input: none (the script sits at the end of <body>, so the DOM already exists).
  * Output: none.
- * Action: starts the username and table reads in parallel and wires the sign-out
+ * Action: starts the username and table reads in parallel, keeps the
+ *         "View company" link in step with the textbox, and wires the sign-out
  *         button to signOut().
  * Role: single entry point for the page.
  */
 function init() {
   loadUser();
   loadCompanies();
+  syncViewLink();
+
+  const input = document.getElementById('company-input');
+  if (input) input.addEventListener('input', syncViewLink);
 
   const signOutButton = document.getElementById('signout-button');
   if (signOutButton) signOutButton.addEventListener('click', signOut);

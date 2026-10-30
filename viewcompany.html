@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Company view &middot; Company desk</title>
+<style>
+  /* ---------- Design tokens: same amber + slate-blue accents as home.html ---------- */
+  :root {
+    --bg: #eef2f8;
+    --surface: #ffffff;
+    --ink: #17233b;
+    --ink-soft: #5c6a84;
+    --ink-faint: #8d99ae;
+    --line: #dde4ef;
+    --amber: #ffd24a;
+    --amber-strong: #e5a900;
+    --amber-soft: #fff5cc;
+    --amber-ink: #3a2c00;
+    --blue-soft: #e4edfa;
+    --blue-line: #c2d4ee;
+    --blue-ink: #21456f;
+    --focus: #2f6fed;
+    --radius: 14px;
+    --shadow-sm: 0 1px 2px rgba(23, 35, 59, .06);
+    --shadow-md: 0 14px 32px -24px rgba(23, 35, 59, .55);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.4;
+    background:
+      radial-gradient(1100px 560px at 50% -260px, #ffffff 0%, rgba(255, 255, 255, 0) 72%),
+      var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .shell {
+    width: min(1040px, 100% - 40px);
+    margin-inline: auto;
+    padding: 26px 0 64px;
+  }
+
+  /* ---------- Top bar: "Welcome, <user>" + page stamp + Sign out ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 4px 0;
+  }
+
+  .welcome {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 20px;
+    min-width: 0;
+  }
+
+  .welcome .mark {
+    flex: none;
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    background: linear-gradient(140deg, var(--amber) 0%, var(--amber-strong) 100%);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .welcome .label { color: var(--ink-soft); font-weight: 500; }
+
+  .welcome .name {
+    font-weight: 700;
+    letter-spacing: -.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .welcome .name[data-state="offline"],
+  .welcome .name[data-state="empty"] { color: var(--ink-soft); }
+
+  .stamp {
+    flex: none;
+    padding: 6px 12px;
+    border: 1px dashed var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .65);
+    color: var(--ink-faint);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  .topbar-right {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Sign out: POSTs /logout so the API clears the HttpOnly session_id cookie */
+  .signout {
+    padding: 7px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease, opacity .15s ease;
+  }
+
+  .signout:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  .signout[disabled] { opacity: .6; cursor: progress; }
+
+  /* ---------- Breadcrumb back to the dashboard ---------- */
+  .crumbs { margin: 22px 0 0; }
+
+  .home-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 13px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink-soft);
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-decoration: none;
+    transition: color .15s ease, border-color .15s ease;
+  }
+
+  .home-link:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  /* ---------- Company identity: the page title is the company name ---------- */
+  .identity { margin: 26px 0 30px; }
+
+  .company-name {
+    margin: 0;
+    font-size: clamp(30px, 4.2vw, 44px);
+    font-weight: 700;
+    letter-spacing: -.02em;
+    line-height: 1.12;
+    overflow-wrap: anywhere;
+  }
+
+  .company-name[data-state="loading"],
+  .company-name[data-state="empty"] { color: var(--ink-soft); }
+
+  .company-note {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    margin: 10px 0 0;
+    color: var(--ink-soft);
+    font-size: 13.5px;
+  }
+
+  .company-note:empty { display: none; }
+
+  .rank-pill {
+    display: inline-flex;
+    justify-content: center;
+    min-width: 38px;
+    padding: 4px 10px;
+    border: 1px solid #f0d98d;
+    border-radius: 999px;
+    background: var(--amber-soft);
+    color: #6b5300;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  /* ---------- Seven tiles: scores, symbol, price, both W/L ratios ----------
+     A 4-column grid, so the four scores sit on the first row and the three
+     price lines on the second, exactly like the paper sketch. */
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin: 0 0 44px;
+  }
+
+  .tile {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 104px;
+    padding: 13px 16px 15px;
+    border: 2px solid var(--blue-line);
+    border-radius: 10px;
+    background: var(--blue-soft);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .tile-label {
+    color: var(--blue-ink);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .tile-value {
+    margin-top: auto;
+    color: var(--ink);
+    font-size: 24px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  .tile-value[data-state="loading"],
+  .tile-value[data-state="empty"] {
+    color: var(--ink-faint);
+    font-weight: 600;
+  }
+
+  /* ---------- One block per analysis: label on the left, growing table on the
+     right. A row is appended for every document the API reports for that
+     section, so the table grows as the company is re-analysed. */
+  .reports {
+    display: grid;
+    gap: 24px;
+    margin: 0 0 12px;
+  }
+
+  .report {
+    display: grid;
+    grid-template-columns: minmax(170px, 250px) minmax(0, 1fr);
+    gap: 6px 22px;
+    align-items: start;
+  }
+
+  .report-name {
+    margin: 0;
+    padding-top: 9px;
+    color: var(--ink);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    line-height: 1.25;
+    text-align: right;
+  }
+
+  .report-name[data-empty="true"] { color: var(--ink-soft); }
+
+  .mini-wrap {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .mini-wrap:focus-visible {
+    outline: 3px solid rgba(47, 111, 237, .38);
+    outline-offset: 2px;
+  }
+
+  .mini-table {
+    width: 100%;
+    min-width: 380px;
+    border-collapse: collapse;
+    font-size: 14.5px;
+  }
+
+  .mini-table th,
+  .mini-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    border-right: 1px solid #eaeff7;
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .mini-table th:last-child,
+  .mini-table td:last-child { border-right: 0; }
+
+  .mini-table tbody tr:last-child td { border-bottom: 0; }
+
+  .mini-table th {
+    background: #f1f5fc;
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .mini-table th:first-child { width: 46%; }
+
+  .mini-date { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+  .mini-html a {
+    color: var(--focus);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    overflow-wrap: anywhere;
+  }
+
+  .mini-html a:hover { color: #1a55c4; }
+
+  .mini-empty {
+    color: var(--ink-faint);
+    font-style: italic;
+    white-space: normal;
+  }
+
+  /* ---------- Picker: only shown when the URL named no company ---------- */
+  .picker-panel {
+    margin: 0 0 40px;
+    padding: 18px 22px 20px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+  }
+
+  .picker-panel[hidden] { display: none; }
+
+  .picker-title {
+    margin: 0 0 14px;
+    color: var(--ink-soft);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  .picker-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .picker-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 16px;
+    border: 1px solid var(--blue-line);
+    border-radius: 999px;
+    background: var(--blue-soft);
+    color: var(--blue-ink);
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background .15s ease, border-color .15s ease, transform .15s ease;
+  }
+
+  .picker-item:hover {
+    transform: translateY(-1px);
+    background: #d8e6fa;
+    border-color: #a9c6e9;
+  }
+
+  .picker-item .symbol {
+    color: var(--ink-soft);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    letter-spacing: .03em;
+  }
+
+  .picker-note {
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: 13.5px;
+  }
+
+  /* ---------- Narrower screens: 2-up tiles, label above each table ---------- */
+  @media (max-width: 900px) {
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .report {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+    }
+
+    .report-name {
+      padding-top: 0;
+      font-size: 18px;
+      text-align: left;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .shell { width: min(1040px, 100% - 24px); }
+    .welcome { font-size: 17px; }
+    .welcome .mark { width: 28px; height: 28px; }
+    .stamp { display: none; }
+    .tile { min-height: 88px; }
+    .tile-value { font-size: 20px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+
+</style>
+</head>
+
+<body>
+<main class="shell">
+  <!-- Welcome line: "Welcome, <user>" — <user> is /getuser's user_name -->
+  <header class="topbar">
+    <div class="welcome">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="label">Welcome,</span>
+      <span class="name" id="username" data-state="loading">&hellip;</span>
+    </div>
+    <div class="topbar-right">
+      <span class="stamp">Company view</span>
+      <button class="signout" id="signout-button" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <a class="home-link" href="home.html">&larr; Back to dashboard</a>
+  </nav>
+
+  <!-- The heading is the company name from /companies/{symbol} -->
+  <section class="identity" aria-labelledby="company-name">
+    <h1 class="company-name" id="company-name" data-state="loading">Company view</h1>
+    <p class="company-note" id="company-note" role="status" aria-live="polite">Reading the company file&hellip;</p>
+  </section>
+
+  <!-- Seven tiles: four scores on the first row, symbol + price + both W/L ratios
+       on the second. Values are written by renderTiles(). -->
+  <section class="tiles" aria-label="Latest scores and prices">
+    <div class="tile">
+      <span class="tile-label">Moat score</span>
+      <span class="tile-value" id="tile-moat" data-state="loading">&hellip;</span>
+    </div>
+    <div class="tile">
+      <span class="tile-label">Cyclical score</span>
+      <span class="tile-value" id="tile-cyclical" data-state="loading">&hellip;</span>
+    </div>
+    <div class="tile">
+      <span class="tile-label">Antifragile score</span>
+      <span class="tile-value" id="tile-anti-fragile" data-state="loading">&hellip;</span>
+    </div>
+    <div class="tile">
+      <span class="tile-label">Symbol</span>
+      <span class="tile-value" id="tile-symbol" data-state="loading">&hellip;</span>
+    </div>
+    <div class="tile">
+      <span class="tile-label">Current price</span>
+      <span class="tile-value" id="tile-price" data-state="loading">&hellip;</span>
+    </div>
+    <div class="tile">
+      <span class="tile-label">WL ratio (base)</span>
+      <span class="tile-value" id="tile-wl-base" data-state="loading">&hellip;</span>
+    </div>
+    <div class="tile">
+      <span class="tile-label">WL ratio (optimistic)</span>
+      <span class="tile-value" id="tile-wl-optimistic" data-state="loading">&hellip;</span>
+    </div>
+  </section>
+
+  <!-- Only shown when the URL named no company: one chip per stored symbol -->
+  <section class="picker-panel" id="picker" aria-labelledby="picker-title" hidden>
+    <h2 class="picker-title" id="picker-title">Choose a company</h2>
+    <ul class="picker-list" id="picker-list"></ul>
+    <p class="picker-note" id="picker-note" hidden>No companies on file yet.</p>
+  </section>
+
+  <!-- Thirteen analysis blocks (label + date/html table), built by renderReports() -->
+  <section class="reports" id="reports" aria-label="Analysis history"></section>
+</main>
+
+
+<script>
+/**
+ * ---------------------------------------------------------------------------
+ * Data contract (all reads are best-effort: every failure is explained in the
+ * note under the company name instead of a blank page)
+ *   GET  https://api.kidsfunbank.ca/getuser            -> { user_name, ... } for "Welcome, <user>"
+ *   GET  https://api.kidsfunbank.ca/companies          -> { count, companies: [ record, ... ] }
+ *   GET  https://api.kidsfunbank.ca/companies/{symbol} -> one record, every analysis column
+ *   GET  https://api.kidsfunbank.ca/companies/{symbol}/analysis/{field} -> that report (text/html)
+ *   POST https://api.kidsfunbank.ca/logout             -> clears the session_id cookie
+ *
+ * There is no /getalldata route on the API (it answers 404): the
+ * everything-about-one-company read is GET /companies/{symbol} - "One company,
+ * including every analysis column" - so that is the call this page makes. A row
+ * carries company_name, symbol, the four scores, the three prices, rank, date,
+ * current_price, price_date, wl_base, wl_optimistic and the thirteen narrative
+ * columns, each of which holds the path of that section's .html document.
+ *
+ * A section is drawn as one row per document: the stored value is normally a
+ * single path (dated by the row's `date`), but an array - or a {date, html}
+ * object, or a `<field>_history` list - becomes one row per entry, which is what
+ * makes the mini tables grow as the company is re-analysed. No document means a
+ * single muted "Not uploaded yet" row, so every table keeps its two columns.
+ *
+ * The session is the HttpOnly session_id cookie the API set at sign-in: these
+ * requests only carry it with credentials: 'include', because the page lives on
+ * www.kidsfunbank.ca and the API on api.kidsfunbank.ca.
+ * ---------------------------------------------------------------------------
+ */
+const API_BASE = 'https://api.kidsfunbank.ca';
+const ENDPOINTS = {
+  user: '/getuser',
+  companies: '/companies',
+  company: (symbol) => '/companies/' + encodeURIComponent(symbol),
+  analysis: (symbol, field) =>
+    '/companies/' + encodeURIComponent(symbol) + '/analysis/' + encodeURIComponent(field),
+  logout: '/logout'
+};
+const REQUEST_TIMEOUT_MS = 10000;
+const EMPTY = '\u2014';
+
+/** Page shown when the API says the session is missing or expired. */
+const SIGNED_OUT_PAGE = 'login.html';
+
+/** Where a chip in the picker points: the same page, keyed by symbol. */
+const SELF_PAGE = 'viewcompany.html';
+
+/**
+ * The thirteen analysis sections, in the order the paper form lists them (and
+ * the order addcompany.html posts them in). "key" is the wire name the API
+ * stores - it is also the `field` that /companies/{symbol}/analysis/{field}
+ * accepts - and "label" is what the analyst sees beside each mini table.
+ */
+const SECTIONS = [
+  { key: 'company_profile', label: 'Company profile' },
+  { key: 'industry_map', label: 'Industry Map' },
+  { key: 'company_position', label: 'Company position' },
+  { key: 'financial_quality', label: 'Financial quality' },
+  { key: 'strategy_vision', label: 'Strategy & vision' },
+  { key: 'moat_analysis', label: 'Moat analysis' },
+  { key: 'cyclical_analysis', label: 'Cyclical analysis' },
+  { key: 'growth_momentum_analysis', label: 'Growth & momentum analysis' },
+  { key: 'anti_fragile_analysis', label: 'Anti-fragile analysis' },
+  { key: 'scenario_stress_analysis', label: 'Scenario & stress analysis' },
+  { key: 'additional_analysis_1', label: 'Additional analysis 1' },
+  { key: 'additional_analysis_2', label: 'Additional analysis 2' },
+  { key: 'additional_analysis_3', label: 'Additional analysis 3' }
+];
+
+/**
+ * The seven tiles, in render order (four on the first row, three on the second).
+ * "keys" lists accepted payload spellings so a snake_case or camelCase record
+ * both lands in the right box, and "kind" picks the formatter: score = whole
+ * marks, money = two decimals, ratio = two decimals, text = as stored.
+ */
+const TILES = [
+  { id: 'tile-moat', label: 'Moat score', keys: ['moat_score', 'moat', 'moatScore'], kind: 'score' },
+  { id: 'tile-cyclical', label: 'Cyclical score', keys: ['cyclical_score', 'cyclical', 'cyclicalScore'], kind: 'score' },
+  { id: 'tile-anti-fragile', label: 'Antifragile score', keys: ['anti_fragile_score', 'antifragile_score', 'antiFragileScore'], kind: 'score' },
+  { id: 'tile-symbol', label: 'Symbol', keys: ['symbol', 'ticker', 'code'], kind: 'text' },
+  { id: 'tile-price', label: 'Current price', keys: ['current_price', 'currentPrice', 'price'], kind: 'money' },
+  { id: 'tile-wl-base', label: 'WL ratio (base)', keys: ['wl_base', 'wl_ratio_base', 'wlRatioBase'], kind: 'ratio' },
+  { id: 'tile-wl-optimistic', label: 'WL ratio (optimistic)', keys: ['wl_optimistic', 'wl_ratio_optimistic', 'wlRatioOptimistic'], kind: 'ratio' }
+];
+
+/**
+ * Input: a record object and a list of accepted key spellings, best first.
+ * Output: the first value that is present and not null / undefined / ''.
+ * Action: walks the key list in order and returns the first hit.
+ * Role: lets one tile or column read snake_case and camelCase payloads alike.
+ */
+function pick(record, keys) {
+  if (!record || typeof record !== 'object') return undefined;
+  for (const key of keys) {
+    const value = record[key];
+    if (value !== null && value !== undefined && value !== '') return value;
+  }
+  return undefined;
+}
+
+/**
+ * Input: any value from the API.
+ * Output: a trimmed string, or the em-dash placeholder when it is unusable.
+ * Action: stringifies, trims, and substitutes EMPTY for null / undefined / blank.
+ * Role: keeps every cell non-empty so a missing field never collapses a column.
+ */
+function asText(value) {
+  if (value === null || value === undefined) return EMPTY;
+  const text = String(value).trim();
+  return text ? text : EMPTY;
+}
+
+/**
+ * Input: any value from the API.
+ * Output: a finite number, or null when the value is not one.
+ * Action: converts with Number() and rejects NaN / Infinity / blank strings.
+ * Role: the single guard in front of the score, price and ratio formatters.
+ */
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+/**
+ * Input: a score as stored (usually an integer 0-100).
+ * Output: the score as text ("96"), or the em-dash placeholder.
+ * Action: keeps whole marks whole and shows at most one decimal otherwise.
+ * Role: renders the three score tiles.
+ */
+function formatScore(value) {
+  const number = toNumber(value);
+  if (number === null) return EMPTY;
+  return Number.isInteger(number) ? String(number) : number.toFixed(1);
+}
+
+/**
+ * Input: a price as stored (current_price is a float from the quote API).
+ * Output: the price with two decimals ("348.91"), or the em-dash placeholder.
+ * Action: formats through toFixed(2); no currency symbol, because the record
+ *         does not say which one applies.
+ * Role: renders the Current price tile.
+ */
+function formatMoney(value) {
+  const number = toNumber(value);
+  return number === null ? EMPTY : number.toFixed(2);
+}
+
+/**
+ * Input: a W/L ratio as stored (-0.05275000573638674).
+ * Output: the ratio with two decimals ("-0.05"), or the em-dash placeholder.
+ * Action: formats through toFixed(2).
+ * Role: renders the two W/L ratio tiles.
+ */
+function formatRatio(value) {
+  const number = toNumber(value);
+  return number === null ? EMPTY : number.toFixed(2);
+}
+
+/**
+ * Input: an ISO date or timestamp ("2026-10-29", "2026-10-29T22:00:09.456275Z").
+ * Output: "2026/10/29", or "2026/10/29 22:00" when the value carries a time;
+ *         the em-dash placeholder when there is no usable date.
+ * Action: reads the digits with a regex (no Date object, so no timezone shift)
+ *         and drops the seconds the way the paper file does.
+ * Role: stamps every mini-table date cell and the note under the company name.
+ */
+function formatStamp(value) {
+  const text = asText(value);
+  if (text === EMPTY) return EMPTY;
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(text);
+  if (!match) return text;
+
+  const stamp = match[1] + '/' + match[2] + '/' + match[3];
+  return match[4] ? stamp + ' ' + match[4] + ':' + match[5] : stamp;
+}
+
+/**
+ * Input: a stored document path ("/app/company_analysis/AAPL/moat_analysis.html").
+ * Output: the file's own name ("moat_analysis.html"), or the em-dash placeholder.
+ * Action: keeps the last path segment and strips any query string.
+ * Role: the text of the link in the html column - the path itself is long and
+ *       host-specific, so it goes in the link's tooltip instead.
+ */
+function fileName(path) {
+  const text = asText(path);
+  if (text === EMPTY) return EMPTY;
+
+  const clean = text.split('?')[0].split('#')[0];
+  const parts = clean.split('/').filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : text;
+}
+
+/**
+ * Input: one history entry from the API (a path string, or an object such as
+ *        {date: "2026-10-29", html: "/app/..."}), plus the row's own date.
+ * Output: {date, path} with both parts as text, or null when there is no path.
+ * Action: accepts a bare path, or an object under any of the usual names for the
+ *         document (html / path / file / url / value) and the stamp (date /
+ *         created_at / uploaded_at / ...), falling back to the row's date.
+ * Role: normalises one row of a mini table, whatever shape the API sends.
+ */
+function toEntry(item, fallbackDate) {
+  if (typeof item === 'string') {
+    const path = item.trim();
+    return path ? { date: asText(fallbackDate), path } : null;
+  }
+  if (!item || typeof item !== 'object') return null;
+
+  const path = pick(item, ['html', 'path', 'file', 'file_path', 'file_name', 'document', 'url', 'value']);
+  if (asText(path) === EMPTY) return null;
+
+  const date = pick(item, ['date', 'created_at', 'uploaded_at', 'updated_at', 'stamp']);
+  return {
+    date: asText(date === undefined ? fallbackDate : date),
+    path: String(path)
+  };
+}
+
+/**
+ * Input: one company record, and the analysis field to read.
+ * Output: an array of {date, path} entries - empty when nothing is stored.
+ * Action: tries `<field>_history`, then `history_<field>`, then the column
+ *         itself; each source may be a single path / object or a list, and the
+ *         first source that yields rows wins. Every entry is dated by its own
+ *         stamp, or by the row's `date` when it has none.
+ * Role: decides how many rows a mini table gets - one per stored document, so
+ *       the table grows as the section is re-analysed.
+ */
+function toHistory(record, field) {
+  const fallbackDate = pick(record, ['date', 'updated_at', 'scored_at']);
+  const sources = [record[field + '_history'], record['history_' + field], record[field]];
+
+  for (const source of sources) {
+    if (source === null || source === undefined || source === '') continue;
+
+    const entries = [];
+    for (const item of Array.isArray(source) ? source : [source]) {
+      const entry = toEntry(item, fallbackDate);
+      if (entry) entries.push(entry);
+    }
+    if (entries.length) return entries;
+  }
+
+  return [];
+}
+
+/**
+ * Input: the body of GET /companies/{symbol}.
+ * Output: the company record object, or null when the answer holds none.
+ * Action: unwraps {company: ...} / {data: ...} / {result: ...} envelopes and
+ *         accepts a bare record (anything carrying a symbol or a company name).
+ * Role: keeps the page working whether the API answers with the row or wraps it.
+ */
+function toRecord(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+
+  for (const key of ['company', 'data', 'result', 'record']) {
+    const nested = payload[key];
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      const unwrapped = toRecord(nested);
+      if (unwrapped) return unwrapped;
+    }
+  }
+
+  return payload.symbol || payload.ticker || payload.company_name || payload.companyName
+    ? payload
+    : null;
+}
+
+/**
+ * Input: the body of GET /companies.
+ * Output: an array of record objects ([] when the payload holds none).
+ * Action: accepts a bare array or one nested under companies / data / rows /
+ *         results / items, then keeps only the object entries.
+ * Role: feeds both the picker and the name lookup.
+ */
+function toList(payload) {
+  if (Array.isArray(payload)) return payload.filter((item) => item && typeof item === 'object');
+  if (!payload || typeof payload !== 'object') return [];
+
+  for (const key of ['companies', 'data', 'rows', 'results', 'items']) {
+    if (Array.isArray(payload[key])) {
+      return payload[key].filter((item) => item && typeof item === 'object');
+    }
+  }
+  return [];
+}
+
+/**
+ * Input: the company list, and the name or symbol typed on the dashboard.
+ * Output: the best matching record, or undefined when nothing matches.
+ * Action: compares case-insensitively - symbol, then exact name, then a name
+ *         that starts with the query, then one that contains it.
+ * Role: turns "Apple" (typed into home.html's textbox) into the stored AAPL row.
+ */
+function findCompany(list, query) {
+  const needle = String(query || '').trim().toLowerCase();
+  if (!needle) return undefined;
+
+  const looks = [
+    (record) => asText(pick(record, ['symbol', 'ticker', 'code'])).toLowerCase() === needle,
+    (record) => asText(pick(record, ['company_name', 'companyName', 'name'])).toLowerCase() === needle,
+    (record) => asText(pick(record, ['company_name', 'companyName', 'name'])).toLowerCase().startsWith(needle),
+    (record) => asText(pick(record, ['company_name', 'companyName', 'name'])).toLowerCase().includes(needle)
+  ];
+
+  for (const look of looks) {
+    const match = list.find(look);
+    if (match) return match;
+  }
+  return undefined;
+}
+
+/**
+ * Input: a query-string value such as ?symbol=AAPL.
+ * Output: the trimmed value, or '' when absent or blank.
+ * Action: trims what URLSearchParams already decoded.
+ * Role: normalises the page's two inputs - symbol and name.
+ */
+function cleanParam(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+/**
+ * Input: raw JSON payload from /getuser.
+ * Output: the user name as a trimmed string ('' when unavailable).
+ * Action: handles plain strings plus {user_name} / {userName} / {username} /
+ *         {user} / {name} / {data: ...} shapes, in that priority order.
+ * Role: fills the "Welcome, <user>" line; the caller owns the placeholder text.
+ */
+function toUsername(payload) {
+  if (typeof payload === 'string') return payload.trim();
+  if (!payload || typeof payload !== 'object') return '';
+
+  const candidates = [
+    payload.user_name,
+    payload.userName,
+    payload.username,
+    payload.user,
+    payload.name,
+    payload.data
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    if (candidate && typeof candidate === 'object') {
+      const nested = toUsername(candidate);
+      if (nested) return nested;
+    }
+  }
+  return '';
+}
+
+/**
+ * Input: an API path such as "/companies/AAPL".
+ * Output: the parsed JSON body.
+ * Action: GETs API_BASE + path with credentials: 'include' - the session is the
+ *         HttpOnly session_id cookie, which a cross-origin request only carries
+ *         when credentials are included - without caching, aborting after
+ *         REQUEST_TIMEOUT_MS, and throws an Error carrying .status on any non-2xx.
+ * Role: the single network helper for the user, list and company reads.
+ */
+async function fetchJson(path) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(API_BASE + path, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include',
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      const error = new Error('HTTP ' + response.status);
+      error.status = response.status;
+      throw error;
+    }
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Input: an error thrown by fetchJson().
+ * Output: true when the API refused the request for lack of a session (401/403).
+ * Action: reads the .status fetchJson() attaches to its errors.
+ * Role: separates "signed out" (back to login.html) from "no such company" and
+ *       "endpoint broke" (stay on the page and say so).
+ */
+function isSignedOut(error) {
+  return Boolean(error) && (error.status === 401 || error.status === 403);
+}
+
+/**
+ * Input: an error thrown by fetchJson().
+ * Output: one short sentence for the note line.
+ * Action: names the HTTP status when there is one, and the two likely causes
+ *         (timeout, unreachable host) otherwise.
+ * Role: every failure is explained in one place instead of a blank page.
+ */
+function describeError(error) {
+  if (error && error.status) return 'the API answered HTTP ' + error.status + '.';
+  if (error && error.name === 'AbortError') return 'the API took too long to answer.';
+  return 'the API could not be reached.';
+}
+
+/**
+ * Input: none.
+ * Output: none (it navigates).
+ * Action: replaces the page with login.html.
+ * Role: the single exit for an absent or expired session.
+ */
+function leaveForSignIn() {
+  window.location.replace(SIGNED_OUT_PAGE);
+}
+
+/**
+ * Input: the text for the line under the company name.
+ * Output: none.
+ * Action: writes it into #company-note, which is the page's aria-live status.
+ * Role: one place for "reading…", the failure sentences and the picker prompt.
+ */
+function setNote(text) {
+  const note = document.getElementById('company-note');
+  if (note) note.textContent = text;
+}
+
+/**
+ * Input: the text for the page heading, and its data-state
+ *        ("loading" / "ready" / "empty").
+ * Output: none.
+ * Action: writes #company-name and marks its state for the muted colour.
+ * Role: the wireframe's <company name> line at the top of the page.
+ */
+function setName(text, state) {
+  const heading = document.getElementById('company-name');
+  if (!heading) return;
+  heading.textContent = text;
+  heading.dataset.state = state;
+}
+
+/**
+ * Input: one company record.
+ * Output: none.
+ * Action: fills each tile in TILES from the record, formats its value by kind,
+ *         and marks the tile empty when the field is missing.
+ * Role: the seven boxes - moat / cyclical / antifragile score, symbol, price and
+ *       both W/L ratios - i.e. the latest stored figures for this company.
+ */
+function renderTiles(record) {
+  for (const tile of TILES) {
+    const node = document.getElementById(tile.id);
+    if (!node) continue;
+
+    const raw = pick(record, tile.keys);
+    let text;
+    if (tile.kind === 'score') text = formatScore(raw);
+    else if (tile.kind === 'money') text = formatMoney(raw);
+    else if (tile.kind === 'ratio') text = formatRatio(raw);
+    else text = asText(raw);
+
+    node.textContent = text;
+    node.dataset.state = text === EMPTY ? 'empty' : 'ready';
+  }
+}
+
+/**
+ * Input: one company record.
+ * Output: none.
+ * Action: clears #company-note and writes a "Rank A" pill followed by the dates
+ *         the scores and the price were stored, e.g.
+ *         "Rank A · Scores dated 2026/10/29 · Price 2026/10/29 22:00".
+ * Role: says how current the numbers above the tables are, without inventing
+ *       anything: a company with no stored scores says so.
+ */
+function renderNote(record) {
+  const note = document.getElementById('company-note');
+  if (!note) return;
+  note.textContent = '';
+
+  const rank = asText(pick(record, ['rank', 'grade']));
+  if (rank !== EMPTY) {
+    const pill = document.createElement('span');
+    pill.className = 'rank-pill';
+    pill.textContent = 'Rank ' + rank;
+    note.appendChild(pill);
+  }
+
+  const bits = [];
+  const scored = formatStamp(pick(record, ['date', 'updated_at', 'scored_at']));
+  if (scored !== EMPTY) bits.push('Scores dated ' + scored);
+  const priced = formatStamp(pick(record, ['price_date', 'priceDate']));
+  if (priced !== EMPTY) bits.push('Price ' + priced);
+  if (bits.length) note.append(bits.join(' \u00b7 '));
+
+  if (!note.childNodes.length) note.textContent = 'No stored scores for this company yet.';
+}
+
+/**
+ * Input: one history entry ({date, path}), its section and the company symbol.
+ * Output: a <tr> with the date and a link to the report.
+ * Action: formats the date; the html cell links to
+ *         /companies/{symbol}/analysis/{field}, which serves that section's
+ *         stored document (the API sandboxes it, so it cannot run scripts),
+ *         and names the file. The full stored path goes in the tooltip.
+ * Role: the growing row of a mini table.
+ */
+function buildEntryRow(section, entry, symbol) {
+  const row = document.createElement('tr');
+
+  const date = document.createElement('td');
+  date.className = 'mini-date';
+  date.textContent = formatStamp(entry.date);
+
+  const cell = document.createElement('td');
+  cell.className = 'mini-html';
+  const name = fileName(entry.path);
+
+  if (symbol) {
+    const link = document.createElement('a');
+    link.href = API_BASE + ENDPOINTS.analysis(symbol, section.key);
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.title = entry.path;
+    link.textContent = name;
+    cell.appendChild(link);
+  } else {
+    cell.textContent = name;
+  }
+
+  row.append(date, cell);
+  return row;
+}
+
+/**
+ * Input: one section definition, its entries, and the company symbol ('' when
+ *        the record has none).
+ * Output: a .mini-wrap <div> holding the section's date/html table.
+ * Action: builds thead (date | html) once, then one row per entry - or a single
+ *         muted "Not uploaded yet" row when the section holds no document - and
+ *         makes the wrapper a keyboard-reachable scroll region.
+ * Role: the mini table under each analysis label; it grows with the entries.
+ */
+function buildMiniTable(section, entries, symbol) {
+  const wrap = document.createElement('div');
+  wrap.className = 'mini-wrap';
+  wrap.tabIndex = 0;
+  wrap.setAttribute('role', 'region');
+  wrap.setAttribute('aria-label', section.label + ' history');
+
+  const table = document.createElement('table');
+  table.className = 'mini-table';
+
+  const caption = document.createElement('caption');
+  caption.className = 'sr-only';
+  caption.textContent = section.label + ': when each report was stored and the document itself.';
+  table.appendChild(caption);
+
+  const head = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  for (const label of ['date', 'html']) {
+    const th = document.createElement('th');
+    th.scope = 'col';
+    th.textContent = label;
+    headRow.appendChild(th);
+  }
+  head.appendChild(headRow);
+  table.appendChild(head);
+
+  const body = document.createElement('tbody');
+  if (entries.length) {
+    for (const entry of entries) body.appendChild(buildEntryRow(section, entry, symbol));
+  } else {
+    const row = document.createElement('tr');
+    const date = document.createElement('td');
+    date.className = 'mini-date';
+    date.textContent = EMPTY;
+    const empty = document.createElement('td');
+    empty.className = 'mini-html mini-empty';
+    empty.textContent = 'Not uploaded yet';
+    row.append(date, empty);
+    body.appendChild(row);
+  }
+  table.appendChild(body);
+
+  wrap.appendChild(table);
+  return wrap;
+}
+
+/**
+ * Input: one company record.
+ * Output: none.
+ * Action: rebuilds #reports as thirteen label + table blocks (SECTIONS order),
+ *         greying the label of a section that holds no document.
+ * Role: the body of the page - the part that grows as the company is re-analysed.
+ */
+function renderReports(record) {
+  const reports = document.getElementById('reports');
+  if (!reports) return;
+  reports.textContent = '';
+
+  const symbol = asText(pick(record, ['symbol', 'ticker', 'code']));
+  const fragment = document.createDocumentFragment();
+
+  for (const section of SECTIONS) {
+    const box = document.createElement('div');
+    box.className = 'report';
+
+    const title = document.createElement('h2');
+    title.className = 'report-name';
+    title.textContent = section.label;
+
+    const entries = toHistory(record, section.key);
+    if (!entries.length) title.dataset.empty = 'true';
+
+    box.append(title, buildMiniTable(section, entries, symbol === EMPTY ? '' : symbol));
+    fragment.appendChild(box);
+  }
+
+  reports.appendChild(fragment);
+}
+
+/**
+ * Input: one company record.
+ * Output: none.
+ * Action: names the page after the company, writes the note, the seven tiles and
+ *         the thirteen report tables, hides the picker and retitles the tab.
+ * Role: the single draw for a loaded company.
+ */
+function renderRecord(record) {
+  const name = asText(pick(record, ['company_name', 'companyName', 'name']));
+  const symbol = asText(pick(record, ['symbol', 'ticker', 'code']));
+  const heading = name === EMPTY ? symbol : name;
+
+  setName(heading === EMPTY ? 'Company view' : heading, heading === EMPTY ? 'empty' : 'ready');
+  renderNote(record);
+  renderTiles(record);
+  renderReports(record);
+  hidePicker();
+
+  document.title = (heading === EMPTY ? 'Company view' : heading) + ' \u00b7 Company desk';
+}
+
+/**
+ * Input: the sentence to show under the heading.
+ * Output: none.
+ * Action: resets the heading, the seven tiles and the report area to their
+ *         placeholders and writes the sentence into the note.
+ * Role: the state behind "no company asked for yet", "no such company" and a
+ *       failed read - the page never shows a half-filled file.
+ */
+function renderBlank(message) {
+  setName('Company view', 'loading');
+  setNote(message);
+  renderTiles({});
+  const reports = document.getElementById('reports');
+  if (reports) reports.textContent = '';
+  document.title = 'Company view \u00b7 Company desk';
+}
+
+/**
+ * Input: the array of records from GET /companies.
+ * Output: none.
+ * Action: fills #picker-list with one chip per company (name + symbol) pointing
+ *         at this page with ?symbol=…, and unhides the panel; with no companies
+ *         it shows the "No companies on file yet" line instead.
+ * Role: the way in when the URL names no company, and the recovery path from a
+ *       name that matched nothing.
+ */
+function showPicker(list) {
+  const panel = document.getElementById('picker');
+  const items = document.getElementById('picker-list');
+  const empty = document.getElementById('picker-note');
+  if (!panel || !items) return;
+
+  items.textContent = '';
+  for (const record of list) {
+    const symbol = asText(pick(record, ['symbol', 'ticker', 'code']));
+    const name = asText(pick(record, ['company_name', 'companyName', 'name']));
+
+    const item = document.createElement('li');
+    const link = document.createElement('a');
+    link.className = 'picker-item';
+    link.href = SELF_PAGE + '?symbol=' +
+      encodeURIComponent(symbol === EMPTY ? name : symbol);
+    link.textContent = name;
+
+    if (symbol !== EMPTY) {
+      const tag = document.createElement('span');
+      tag.className = 'symbol';
+      tag.textContent = symbol;
+      link.appendChild(tag);
+    }
+
+    item.appendChild(link);
+    items.appendChild(item);
+  }
+
+  if (empty) empty.hidden = list.length > 0;
+  panel.hidden = false;
+}
+
+/**
+ * Input: none.
+ * Output: none.
+ * Action: hides the picker panel (called once a company is drawn).
+ * Role: keeps the picker out of the way of a company that did load.
+ */
+function hidePicker() {
+  const panel = document.getElementById('picker');
+  if (panel) panel.hidden = true;
+}
+
+/**
+ * Input: none (the script sits at the end of <body>, so the DOM already exists).
+ * Output: none (it hands over to one of the three loaders).
+ * Action: reads ?symbol= or ?name= from the URL - symbol wins - and opens that
+ *         company; with neither, it opens the picker.
+ * Role: the router for the page, and the reason the same file serves a direct
+ *       link, a dashboard lookup and a bare visit.
+ */
+async function load() {
+  const params = new URLSearchParams(window.location.search);
+  const symbol = cleanParam(params.get('symbol'));
+  const name = cleanParam(params.get('name'));
+
+  if (symbol) return openBySymbol(symbol);
+  if (name) return openByName(name);
+  return openPicker('Pick a company to open its file.');
+}
+
+/**
+ * Input: a symbol such as "AAPL".
+ * Output: none.
+ * Action: GETs /companies/{symbol} - the API's everything-about-one-company read
+ *         - and draws it; a 404 (Unknown company) falls back to the picker, a
+ *         401/403 goes to login.html, and anything else is explained in the note.
+ * Role: the main read of the page.
+ */
+async function openBySymbol(symbol) {
+  setName(symbol, 'loading');
+  setNote('Reading ' + symbol + '\u2026');
+
+  try {
+    const record = toRecord(await fetchJson(ENDPOINTS.company(symbol)));
+    if (!record) {
+      await openPicker('No company called \u201c' + symbol + '\u201d is on file. Pick one:');
+      return;
+    }
+
+    renderRecord(record);
+    rememberSymbol(symbol);
+  } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+    if (error && error.status === 404) {
+      await openPicker('No company called \u201c' + symbol + '\u201d is on file. Pick one:');
+      return;
+    }
+
+    renderBlank('Could not read ' + symbol + ' \u2014 ' + describeError(error));
+  }
+}
+
+/**
+ * Input: a company name (or symbol) typed into home.html's textbox.
+ * Output: none.
+ * Action: GETs /companies, finds the closest match, then opens it by symbol so
+ *         the rest of the page is identical to a direct link; no match explains
+ *         itself and shows the picker of every stored company.
+ * Role: turns the dashboard's free-text lookup into a company file.
+ */
+async function openByName(query) {
+  setName(query, 'loading');
+  setNote('Looking up \u201c' + query + '\u2026');
+
+  try {
+    const list = toList(await fetchJson(ENDPOINTS.companies));
+    const match = findCompany(list, query);
+    const symbol = match ? asText(pick(match, ['symbol', 'ticker', 'code'])) : EMPTY;
+
+    if (match && symbol !== EMPTY) {
+      await openBySymbol(symbol);
+      return;
+    }
+    if (match) {
+      renderRecord(match);
+      return;
+    }
+
+    renderBlank('No company matches \u201c' + query + '\u201d \u2014 pick one:');
+    showPicker(list);
+  } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+
+    renderBlank('Could not read the company list \u2014 ' + describeError(error));
+  }
+}
+
+/**
+ * Input: the sentence to show while the picker is open.
+ * Output: none.
+ * Action: blanks the page to that sentence, then fills the picker from
+ *         /companies; a failure adds its reason to the same sentence.
+ * Role: the empty state - no company asked for, or a name that matched nothing.
+ */
+async function openPicker(message) {
+  renderBlank(message);
+
+  try {
+    showPicker(toList(await fetchJson(ENDPOINTS.companies)));
+  } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+
+    setNote(message + ' The company list could not be read \u2014 ' + describeError(error));
+  }
+}
+
+/**
+ * Input: the symbol that was just drawn.
+ * Output: none.
+ * Action: rewrites the address bar to ?symbol=<symbol> with history.replaceState
+ *         (so a refresh, a bookmark or a shared link reopens the same file, and
+ *         Back still leaves the page); a refusal from the browser is ignored.
+ * Role: makes a name lookup sticky without adding a history entry.
+ */
+function rememberSymbol(symbol) {
+  if (!window.history || typeof window.history.replaceState !== 'function') return;
+  try {
+    window.history.replaceState(null, '', SELF_PAGE + '?symbol=' + encodeURIComponent(symbol));
+  } catch (error) {
+    // file:// and a few embedded contexts refuse history changes: the page still works.
+  }
+}
+
+/**
+ * Input: none.
+ * Output: none.
+ * Action: GETs /getuser and writes its user_name into the welcome line as
+ *         "Welcome, <user>"; sends the visitor back to login.html when the API
+ *         answers 401/403 (no session), and shows an em-dash placeholder with an
+ *         explanatory tooltip when the API cannot be reached at all.
+ * Role: personalizes the top bar and doubles as the session check for the page.
+ */
+async function loadUser() {
+  const name = document.getElementById('username');
+  if (!name) return;
+
+  try {
+    const user = toUsername(await fetchJson(ENDPOINTS.user));
+    name.textContent = user || EMPTY;
+    name.dataset.state = user ? 'ready' : 'empty';
+  } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+
+    name.textContent = EMPTY;
+    name.dataset.state = 'offline';
+    name.title = 'Could not reach ' + API_BASE + ENDPOINTS.user;
+  }
+}
+
+/**
+ * Input: none (bound to the #signout-button click).
+ * Output: none.
+ * Action: POSTs /logout with credentials: 'include' so the API can expire the
+ *         HttpOnly session_id cookie (JS cannot delete it itself), shows a busy
+ *         label meanwhile, then navigates to login.html whatever the response was.
+ * Role: the only way out, since the cookie is invisible to JavaScript.
+ */
+async function signOut() {
+  const button = document.getElementById('signout-button');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Signing out\u2026';
+  }
+
+  try {
+    await fetch(API_BASE + ENDPOINTS.logout, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include'
+    });
+  } catch (error) {
+    // Offline or blocked: the visitor still leaves, and the next request will
+    // simply come back 401 and route through leaveForSignIn().
+  } finally {
+    window.location.replace(SIGNED_OUT_PAGE);
+  }
+}
+
+/**
+ * Input: none (the script sits at the end of <body>, so the DOM already exists).
+ * Output: none.
+ * Action: starts the username read and the company read together, and wires the
+ *         sign-out button to signOut().
+ * Role: single entry point for the page.
+ */
+function init() {
+  loadUser();
+  load();
+
+  const signOutButton = document.getElementById('signout-button');
+  if (signOutButton) signOutButton.addEventListener('click', signOut);
+}
+
+init();
+</script>
+</body>
+</html>
