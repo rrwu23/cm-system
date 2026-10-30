@@ -51,11 +51,13 @@
   const HTML_TYPES = ['text/html', 'application/xhtml+xml'];
 
   // The four /100 marks: whole numbers, each with a ▲ / ▼ button that moves it by one point.
+  // `label` is the name the sheet prints, used whenever the app has to say which box it
+  // corrected — the page should never rewrite a score without naming it.
   const SCORE_FIELDS = [
-    { field: 'moat_score', key: 'moatScore' },
-    { field: 'cyclical_score', key: 'cyclicalScore' },
-    { field: 'anti_fragile_score', key: 'antifragileScore' },
-    { field: 'growth_score', key: 'growthScore' }
+    { field: 'moat_score', key: 'moatScore', label: 'Moat score' },
+    { field: 'cyclical_score', key: 'cyclicalScore', label: 'Cyclical score' },
+    { field: 'anti_fragile_score', key: 'antifragileScore', label: 'Anti-fragile score' },
+    { field: 'growth_score', key: 'growthScore', label: 'Growth score' }
   ];
   // Rank is a letter grade the user picks from the Rank list, never a number.
   const GRADES = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -73,6 +75,9 @@
 
   let pending = null;
   let submitting = false;
+  // Set when the app itself rewrote a score box while the analyst was leaving it. The Submit
+  // click that caused that blur would otherwise post the corrected value unseen.
+  let correctedFresh = false;
 
   /**
    * Input: a raw form value — usually a string from FormData, sometimes a number.
@@ -398,20 +403,120 @@
 
   /**
    * Input: the <form> element.
-   * Output: nothing.
-   * Action: rewrites every score box that holds a value as a whole mark inside 0..100
-   *         (55.5 → 56) and empties a box that holds no number at all.
-   * Role: keeps the number boxes integral, so the browser's step="1" check never blocks
-   *       Submit over a stray decimal the user typed.
+   * Output: an array of corrections — one { input, field, label, from, to, kind } per score box
+   *         this call had to rewrite. `kind` is 'clamped' (outside 0..100), 'rounded' (a
+   *         decimal such as 55.5) or 'cleared' (no number at all); `to` is null when cleared.
+   *         Boxes that were already a whole mark inside the range are left alone and not listed.
+   * Action: rewrites each score box as a whole mark inside 0..100 (55.5 → 56, 844 → 100) and
+   *         empties a box that holds no number at all, then reports what it changed.
+   * Role: keeps the number boxes integral, so the browser's step="1" check never blocks Submit
+   *       over a stray decimal — and since this function edits what the analyst typed, it also
+   *       names every box it touched so the page can point at it instead of editing silently.
    */
   function normalizeScoreInputs(form) {
+    const corrections = [];
+
     SCORE_FIELDS.forEach(function (entry) {
       const input = findControl(form, entry.field);
       if (!input || input.value === '') return;
 
-      const value = normalizeScore(input.value);
-      input.value = value === null ? '' : String(value);
+      const from = String(input.value).trim();
+      const value = normalizeScore(from);
+      const next = value === null ? '' : String(value);
+      if (next === from) return;
+
+      input.value = next;
+      corrections.push({
+        input: input,
+        field: entry.field,
+        label: entry.label,
+        from: from,
+        to: value,
+        kind: value === null
+          ? 'cleared'
+          : (toNumber(from) < MIN_SCORE || toNumber(from) > MAX_SCORE ? 'clamped' : 'rounded')
+      });
     });
+
+    return corrections;
+  }
+
+  /**
+   * Input: the corrections array from normalizeScoreInputs().
+   * Output: one sentence naming the box (or boxes) and what each one became.
+   * Action: phrases 'clamped', 'rounded' and 'cleared' corrections in the sheet's own words.
+   * Role: gives the sticky footer something to say whenever a score was rewritten, so an
+   *       auto-corrected 844 is never a silent edit.
+   */
+  function correctionMessage(corrections) {
+    const what = function (correction) {
+      if (correction.kind === 'cleared') return 'was not a number, so the box was emptied';
+      if (correction.kind === 'rounded') return 'was rounded to ' + correction.to;
+      return 'was out of range, so it is now ' + correction.to;
+    };
+
+    const said = corrections.map(function (correction) {
+      return correction.label + ' ' + what(correction);
+    });
+
+    return said.join('; ') + ' — scores are whole marks from 0 to 100.';
+  }
+
+  /**
+   * Input: the score input that was rewritten.
+   * Output: nothing.
+   * Action: focuses the box and selects its text, tolerating a harness or an old browser
+   *         without focus() / select().
+   * Role: one place that moves the caret, used both straight away and once more after the click
+   *       gesture that caused the blur has finished.
+   */
+  function takeCaret(input) {
+    input.focus();
+    if (typeof input.select === 'function') input.select();
+  }
+
+  /**
+   * Input: one correction ({ input, … }) from normalizeScoreInputs().
+   * Output: nothing.
+   * Action: puts the caret in the corrected box now, then re-asserts it on the next tick if the
+   *         browser handed focus to the button that was clicked — but leaves focus alone when the
+   *         analyst has clicked into another field in the meantime.
+   * Role: this is the answer to "why did my number change?" — the caret lands in the box that
+   *       was rewritten, with the new value selected so typing replaces it, even when the blur
+   *       came from clicking Submit.
+   */
+  function focusCorrection(correction) {
+    const input = correction && correction.input;
+    if (!input || typeof input.focus !== 'function') return;
+
+    takeCaret(input);
+
+    // Clicking Submit focuses the button during the same gesture, after this handler has run,
+    // so the first focus() would be undone. Re-assert once the gesture is over — but only over
+    // the Submit button or the page body, never over a stepper the analyst just clicked.
+    window.setTimeout(function () {
+      const active = document.activeElement;
+      if (!active || active === input) return;
+      const tag = String(active.tagName || '').toUpperCase();
+      const submit = tag === 'BUTTON' && String(active.type || '').toLowerCase() === 'submit';
+      if (submit || tag === 'BODY' || tag === 'HTML') takeCaret(input);
+    }, 0);
+  }
+
+  /**
+   * Input: the corrections array from normalizeScoreInputs().
+   * Output: nothing.
+   * Action: shows the correction in the sticky footer, marks it as fresh so the Submit gesture
+   *         that caused the blur cannot post the rewritten value, and puts the caret back in
+   *         the first corrected box.
+   * Role: makes an auto-correction visible and holds the send for one click — the analyst sees
+   *       844 become 100 in the Moat score box before anything is posted.
+   */
+  function announceCorrections(corrections) {
+    if (!corrections || corrections.length === 0) return;
+    correctedFresh = true;
+    showHint(correctionMessage(corrections), 'warn');
+    focusCorrection(corrections[0]);
   }
 
   /**
@@ -599,13 +704,24 @@
 
   /**
    * Input: the submit event.
-   * Output: the Promise from submitForm(), so a caller can wait for the server.
-   * Action: stops the browser's own post, recalculates at once and sends the sheet.
-   * Role: wires the amber Submit button to POST /addcompany.
+   * Output: the Promise from submitForm(), or a resolved null when this click only surfaces a
+   *         correction the app just made to a score box.
+   * Action: stops the browser's own post, recalculates at once and sends the sheet — unless a
+   *         score was rewritten a moment ago, in which case it clears that flag and sends
+   *         nothing so the analyst can look at the corrected box first.
+   * Role: wires the amber Submit button to POST /addcompany, and keeps the sheet from posting a
+   *       value the app changed on its way out of a box (844 → 100 would otherwise be saved
+   *       without ever being seen).
    */
   function handleSubmit(event) {
     event.preventDefault();
     window.clearTimeout(pending);
+
+    if (correctedFresh) {
+      correctedFresh = false;
+      return Promise.resolve(null);
+    }
+
     return submitForm(event.currentTarget);
   }
 
@@ -617,6 +733,9 @@
    */
   function recalculate(form, reason) {
     window.clearTimeout(pending);
+    // A correction belongs to the 'changed' pass that produced it. Typing again, a stepper,
+    // a reset or a send means the analyst has moved on from it, so the hold is lifted.
+    if (reason !== 'changed') correctedFresh = false;
     const result = refresh(form);
     updateHint(form, result.scores);
     console.log(LOG_PREFIX + ' ' + reason, result.scores);
@@ -651,13 +770,18 @@
     }
 
     form.addEventListener('input', function () {
+      // Text is the analyst's again as soon as they type, so a pending hold is released here
+      // and not 200 ms later when the debounced recalculation lands.
+      correctedFresh = false;
       scheduleRecalculate(form);
     });
 
-    // Rounding on change keeps a typed 55.5 from tripping the browser's step="1" check.
+    // Rounding on change keeps a typed 55.5 from tripping the browser's step="1" check, and the
+    // corrections it returns are announced so the box that was rewritten gets the caret back.
     form.addEventListener('change', function () {
-      normalizeScoreInputs(form);
+      const corrections = normalizeScoreInputs(form);
       recalculate(form, 'changed');
+      announceCorrections(corrections);
     });
 
     // One delegated listener serves all eight ▲ / ▼ buttons.
@@ -685,6 +809,7 @@
       stepScore: stepScore,
       normalizeScore: normalizeScore,
       normalizeGrade: normalizeGrade,
+      normalizeScoreInputs: normalizeScoreInputs,
       describeUpload: describeUpload,
       formatBytes: formatBytes
     };
