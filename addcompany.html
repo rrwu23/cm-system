@@ -908,6 +908,97 @@
   </form>
 </main>
 
+<!--
+  Session gate — runs before calc.js. The sheet posts to the API, so a visitor with no
+  session should land on login.html instead of typing a whole sheet that Submit can only
+  answer with 401/403. GET /getuser is the only honest check: the session_id cookie is
+  HttpOnly and scoped to the API host, so document.cookie can never see it (the same probe
+  index.html, login.html, home.html and viewcompany.html use).
+  Kept inline rather than in calc.js on purpose: the gate must not depend on a
+  cache-busted script a browser may still be holding an old copy of, and it has to run
+  even if that script never loads.
+    200                         -> stay on the sheet
+    401 / 403                   -> login.html (missing or expired session)
+    5xx / timeout / unreachable -> stay on the sheet, where Submit reports the real answer
+  Nothing is probed when JavaScript is off — the form's own action= posts to the API, and
+  the API is the only thing that can really refuse a sheet.
+-->
+<script>
+(function () {
+  'use strict';
+
+  const API_BASE = 'https://api.kidsfunbank.ca';
+  const USER_PATH = '/getuser';
+  const SIGNED_OUT_PAGE = 'login.html';
+  const PROBE_TIMEOUT_MS = 5000;
+
+  /**
+   * Input: none.
+   * Output: the HTTP status of GET /getuser, or 0 when the API could not be reached.
+   * Action: GETs /getuser with credentials: 'include' — the only way the HttpOnly
+   *         session_id cookie travels to api.kidsfunbank.ca — without caching, waiting at
+   *         most PROBE_TIMEOUT_MS; the body is never read, only the status.
+   * Role: turns "is this visitor signed in?" into one number the gate can test.
+   */
+  async function probeSession() {
+    if (typeof fetch !== 'function') return 0;
+
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = controller ? setTimeout(function () { controller.abort(); }, PROBE_TIMEOUT_MS) : null;
+
+    try {
+      const response = await fetch(API_BASE + USER_PATH, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        credentials: 'include',
+        signal: controller ? controller.signal : undefined
+      });
+      return response.status;
+    } catch (error) {
+      return 0;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Input: a status from probeSession().
+   * Output: true when the API refused the probe for lack of a session (401/403).
+   * Action: compares the status with the two refusal codes.
+   * Role: narrows "not signed in" to what the API actually said, so a timeout or a flaky
+   *       connection never throws away a half-filled sheet.
+   */
+  function isSignedOut(status) {
+    return status === 401 || status === 403;
+  }
+
+  /**
+   * Input: none.
+   * Output: none (it navigates).
+   * Action: replaces this page with login.html.
+   * Role: the single exit for an absent or expired session, so the sheet never sits in the
+   *       Back history behind the sign-in screen.
+   */
+  function leaveForSignIn() {
+    window.location.replace(SIGNED_OUT_PAGE);
+  }
+
+  /**
+   * Input: none.
+   * Output: nothing (it may navigate away).
+   * Action: probes the session once and sends a refused visitor to login.html.
+   * Role: entry point of the gate — typing the sheet's URL while signed out ends on the
+   *       sign-in screen instead of on a form that could never be saved.
+   */
+  async function guard() {
+    if (isSignedOut(await probeSession())) leaveForSignIn();
+  }
+
+  guard();
+})();
+</script>
+
 <!-- All maths lives in calc.js so the page only deals with markup. The ?v date keeps a
      browser from pairing this markup with a stale cached script (the host sends
      max-age=14400), which would leave the ▲ / ▼ buttons with no click listener. Bump it
