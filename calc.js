@@ -20,10 +20,16 @@
 
   const FORM_ID = 'add-company-form';
   const HINT_ID = 'calc-hint';
-  // Where Submit posts the sheet — relative to the page, so it follows whatever host
-  // serves the app. Prefix it with API_BASE if the endpoint ever moves to the api host
-  // the dashboard reads from.
-  const SUBMIT_PATH = '/addcompany';
+  // Where Submit posts the sheet: the API host — the same one login.html / home.html /
+  // index.html read from. Absolute, never relative: this page is served by static hosting,
+  // which answers 405 to any POST on a static route, so a relative "/addcompany" never
+  // reaches the API at all (that 405 is the static host, not the backend).
+  const API_BASE = 'https://api.kidsfunbank.ca';
+  const SUBMIT_PATH = API_BASE + '/addcompany';
+  // The footer names the endpoint "/addcompany" — short enough for the sticky bar, and the
+  // same words the static markup uses before this script runs. SUBMIT_PATH stays absolute
+  // because the page host only serves GETs.
+  const SUBMIT_LABEL = '/addcompany';
 
   // Every analysis box on the sheet is an uploaded .html report, not free text.
   const UPLOAD_FIELDS = [
@@ -487,12 +493,12 @@
     if (uploads.length > 0) {
       showHint(uploads.length +
         (uploads.length === 1 ? ' .html report attached' : ' .html reports attached') +
-        '; Submit posts the sheet to ' + SUBMIT_PATH + '.', 'done');
+        '; Submit posts the sheet to ' + SUBMIT_LABEL + '.', 'done');
       return;
     }
 
     showHint('Fill in the scores and attach the .html reports — Submit posts the sheet to ' +
-      SUBMIT_PATH + '.', '');
+      SUBMIT_LABEL + '.', '');
   }
 
   /**
@@ -528,7 +534,7 @@
     }
 
     setSubmitting(form, true);
-    showHint('Saving — posting to ' + SUBMIT_PATH + '.', 'warn');
+    showHint('Saving — posting to ' + SUBMIT_LABEL + '.', 'warn');
 
     // multipart/form-data on purpose, and no Content-Type header: a FormData body makes
     // fetch write `multipart/form-data; boundary=<random>` itself. Hand-setting the header
@@ -539,18 +545,18 @@
       credentials: 'include'
     }).then(function (response) {
       if (response.ok) {
-        showHint('Saved — ' + SUBMIT_PATH + ' answered HTTP ' + response.status + '.', 'done');
+        showHint('Saved — ' + SUBMIT_LABEL + ' answered HTTP ' + response.status + '.', 'done');
       } else if (response.status === 401 || response.status === 403) {
         showHint('Not saved — the session was refused (HTTP ' + response.status +
           '). Sign in again, then Submit once more.', 'error');
       } else {
-        showHint('Not saved — ' + SUBMIT_PATH + ' answered HTTP ' + response.status + '.',
+        showHint('Not saved — ' + SUBMIT_LABEL + ' answered HTTP ' + response.status + '.',
           'error');
       }
       return response;
     }).catch(function (error) {
       const reason = (error && error.message) ? error.message : 'network error';
-      showHint('Not saved — could not reach ' + SUBMIT_PATH + ' (' + reason + ').', 'error');
+      showHint('Not saved — could not reach ' + SUBMIT_LABEL + ' (' + reason + ').', 'error');
       return null;
     }).then(function (response) {
       submitting = false;

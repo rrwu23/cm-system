@@ -548,8 +548,14 @@
     <a class="btn btn-ghost" href="home.html">Back to dashboard</a>
   </header>
 
+  <!--
+    Absolute API URL, not "/addcompany": this sheet is served by static hosting, which
+    answers 405 to any POST on a static route, while the API lives on its own host (the
+    same one login.html / home.html / index.html read from). The script below intercepts
+    the submit; this action is the no-JS fallback.
+  -->
   <form class="sheet" id="add-company-form" autocomplete="off"
-        action="/addcompany" method="post" enctype="multipart/form-data">
+        action="https://api.kidsfunbank.ca/addcompany" method="post" enctype="multipart/form-data">
     <!-- Identity: the two required fields, plus the uploaded company profile -->
     <section class="card card-identity" aria-labelledby="identity-title">
       <div class="card-head">
@@ -909,7 +915,7 @@
      browser from pairing this markup with a stale cached script (the host sends
      max-age=14400), which would leave the ▲ / ▼ buttons with no click listener. Bump it
      whenever calc.js changes. -->
-<script src="calc.js?v=20261029" defer></script>
+<script src="calc.js?v=20261029.2" defer></script>
 </body>
 </html>
 
