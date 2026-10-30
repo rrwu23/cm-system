@@ -250,6 +250,9 @@
    *         back from the form itself, so the browser keeps their real name and MIME type.
    * Role: the exact request body Submit posts to /addcompany — no renaming layer, so a
    *       backend field is found by reading the `name` attributes of addcompany.html.
+   *       There is deliberately no `date` part: POST /addcompany dates the row itself
+   *       ("date is not part of the form: the row is dated today", per the API docs), so a
+   *       client-sent date would either be ignored or overwrite the server's own stamp.
    */
   function buildSubmission(form, scores) {
     const body = new FormData();
