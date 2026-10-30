@@ -535,6 +535,9 @@
 
     setSubmitting(form, true);
     showHint('Saving — posting to ' + SUBMIT_LABEL + '.', 'warn');
+    // Log the resolved URL, not the short label: a 405 in the console is nearly always the
+    // page host refusing a POST on a static route, and the host is what tells them apart.
+    console.log(LOG_PREFIX + ' submit → ' + SUBMIT_PATH);
 
     // multipart/form-data on purpose, and no Content-Type header: a FormData body makes
     // fetch write `multipart/form-data; boundary=<random>` itself. Hand-setting the header
@@ -549,6 +552,12 @@
       } else if (response.status === 401 || response.status === 403) {
         showHint('Not saved — the session was refused (HTTP ' + response.status +
           '). Sign in again, then Submit once more.', 'error');
+      } else if (response.status === 405) {
+        // A 405 is the page host answering, not the API: static hosting serves GET only, so
+        // a POST here means this page is a stale copy that still posts to its own host.
+        // Naming the URL is the whole diagnosis, so it goes in the hint.
+        showHint('Not saved — HTTP 405 from ' + SUBMIT_PATH + ': that host serves pages ' +
+          'only. Reload this page (Cmd+Shift+R) and Submit again.', 'error');
       } else {
         showHint('Not saved — ' + SUBMIT_LABEL + ' answered HTTP ' + response.status + '.',
           'error');
