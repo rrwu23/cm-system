@@ -508,12 +508,16 @@
    * Output: nothing.
    * Action: shows the correction in the sticky footer, marks it as fresh so the Submit gesture
    *         that caused the blur cannot post the rewritten value, and puts the caret back in
-   *         the first corrected box.
+   *         the first corrected box. An empty list means this pass rewrote nothing, so any
+   *         earlier hold is released — its message has just been overwritten anyway.
    * Role: makes an auto-correction visible and holds the send for one click — the analyst sees
    *       844 become 100 in the Moat score box before anything is posted.
    */
   function announceCorrections(corrections) {
-    if (!corrections || corrections.length === 0) return;
+    if (!corrections || corrections.length === 0) {
+      correctedFresh = false;
+      return;
+    }
     correctedFresh = true;
     showHint(correctionMessage(corrections), 'warn');
     focusCorrection(corrections[0]);
