@@ -728,70 +728,81 @@
         <p class="card-note">Whole marks out of 100 &mdash; &#9650; / &#9660; move a score by one. Rank is A&ndash;F.</p>
       </div>
       <div class="grid grid-4">
-        <label class="field">
-          <span class="field-label">Moat score <span class="note">/100</span></span>
+        <!-- The ▲ / ▼ buttons sit outside the <label> on purpose: WebKit drops a click on a
+             button nested inside a label, so each score gets a <div class="field"> whose
+             label points at the box by `for` instead. -->
+        <div class="field">
+          <label class="field-label" id="label-moat_score" for="score-moat_score">
+            Moat score <span class="note">/100</span>
+          </label>
           <span class="score-row">
             <span class="control">
               <input id="score-moat_score" type="number" name="moat_score" min="0" max="100"
                      step="1" inputmode="numeric">
               <span class="suffix" aria-hidden="true">/100</span>
             </span>
-            <span class="stepper">
+            <span class="stepper" role="group" aria-labelledby="label-moat_score">
               <button class="step-btn" type="button" data-step-for="moat_score" data-step="1"
                       aria-controls="score-moat_score" aria-label="Increase moat score by 1">&#9650;</button>
               <button class="step-btn" type="button" data-step-for="moat_score" data-step="-1"
                       aria-controls="score-moat_score" aria-label="Decrease moat score by 1">&#9660;</button>
             </span>
           </span>
-        </label>
-        <label class="field">
-          <span class="field-label">Cyclical score <span class="note">/100</span></span>
+        </div>
+        <div class="field">
+          <label class="field-label" id="label-cyclical_score" for="score-cyclical_score">
+            Cyclical score <span class="note">/100</span>
+          </label>
           <span class="score-row">
             <span class="control">
               <input id="score-cyclical_score" type="number" name="cyclical_score" min="0" max="100"
                      step="1" inputmode="numeric">
               <span class="suffix" aria-hidden="true">/100</span>
             </span>
-            <span class="stepper">
+            <span class="stepper" role="group" aria-labelledby="label-cyclical_score">
               <button class="step-btn" type="button" data-step-for="cyclical_score" data-step="1"
                       aria-controls="score-cyclical_score" aria-label="Increase cyclical score by 1">&#9650;</button>
               <button class="step-btn" type="button" data-step-for="cyclical_score" data-step="-1"
                       aria-controls="score-cyclical_score" aria-label="Decrease cyclical score by 1">&#9660;</button>
             </span>
           </span>
-        </label>
-        <label class="field">
-          <span class="field-label">Anti-fragile score <span class="note">/100</span></span>
+        </div>
+        <div class="field">
+          <label class="field-label" id="label-antifragile_score" for="score-antifragile_score">
+            Anti-fragile score <span class="note">/100</span>
+          </label>
           <span class="score-row">
             <span class="control">
               <input id="score-antifragile_score" type="number" name="antifragile_score" min="0" max="100"
                      step="1" inputmode="numeric">
               <span class="suffix" aria-hidden="true">/100</span>
             </span>
-            <span class="stepper">
+            <span class="stepper" role="group" aria-labelledby="label-antifragile_score">
               <button class="step-btn" type="button" data-step-for="antifragile_score" data-step="1"
                       aria-controls="score-antifragile_score" aria-label="Increase anti-fragile score by 1">&#9650;</button>
               <button class="step-btn" type="button" data-step-for="antifragile_score" data-step="-1"
                       aria-controls="score-antifragile_score" aria-label="Decrease anti-fragile score by 1">&#9660;</button>
             </span>
           </span>
-        </label>
-        <label class="field">
-          <span class="field-label">Growth score <span class="note">/100</span></span>
+        </div>
+        <div class="field">
+          <label class="field-label" id="label-growth_score" for="score-growth_score">
+            Growth score <span class="note">/100</span>
+          </label>
           <span class="score-row">
             <span class="control">
               <input id="score-growth_score" type="number" name="growth_score" min="0" max="100"
                      step="1" inputmode="numeric">
               <span class="suffix" aria-hidden="true">/100</span>
             </span>
-            <span class="stepper">
+            <span class="stepper" role="group" aria-labelledby="label-growth_score">
               <button class="step-btn" type="button" data-step-for="growth_score" data-step="1"
                       aria-controls="score-growth_score" aria-label="Increase growth score by 1">&#9650;</button>
               <button class="step-btn" type="button" data-step-for="growth_score" data-step="-1"
                       aria-controls="score-growth_score" aria-label="Decrease growth score by 1">&#9660;</button>
             </span>
           </span>
-        </label>
+        </div>
         <label class="field">
           <span class="field-label">Rank <span class="note">A&ndash;F</span></span>
           <select name="rank">
@@ -894,8 +905,11 @@
   </form>
 </main>
 
-<!-- All maths lives in calc.js so the page only deals with markup -->
-<script src="calc.js" defer></script>
+<!-- All maths lives in calc.js so the page only deals with markup. The ?v date keeps a
+     browser from pairing this markup with a stale cached script (the host sends
+     max-age=14400), which would leave the ▲ / ▼ buttons with no click listener. Bump it
+     whenever calc.js changes. -->
+<script src="calc.js?v=20261029" defer></script>
 </body>
 </html>
 
