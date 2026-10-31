@@ -203,6 +203,7 @@
       antifragileScore: toNumber(text('anti_fragile_score')),
       growthScore: toNumber(text('growth_score')),
       rank: text('rank'),
+      goodPrice: toNumber(text('good_price')),
       targetPrice: toNumber(text('target_price')),
       badPrice: toNumber(text('bad_price')),
       uploads: uploads
@@ -225,9 +226,9 @@
   /**
    * Input: the values object from readForm().
    * Output: { companyName, symbol, moatScore, cyclicalScore, antifragileScore,
-   *           growthScore, targetPrice, badPrice, rank, uploads, uploadsValid }.
+   *           growthScore, goodPrice, targetPrice, badPrice, rank, uploads, uploadsValid }.
    * Action: rounds and clamps the four scores to whole 0..100 marks, keeps the rank only
-   *         when it is a real A–F grade, keeps the two prices as typed, and flags any
+   *         when it is a real A–F grade, keeps the three prices as typed, and flags any
    *         upload that is not HTML.
    * Role: the payload the dashboard needs; this is the object that gets logged.
    */
@@ -241,6 +242,7 @@
       cyclicalScore: normalizeScore(values.cyclicalScore),
       antifragileScore: normalizeScore(values.antifragileScore),
       growthScore: normalizeScore(values.growthScore),
+      goodPrice: toNumber(values.goodPrice),
       targetPrice: toNumber(values.targetPrice),
       badPrice: toNumber(values.badPrice),
       rank: normalizeGrade(values.rank),
@@ -265,9 +267,9 @@
   /**
    * Input: the <form> element and the scores object from calculateScores().
    * Output: a FormData whose keys are the sheet's own `name` attributes, in sheet order.
-   * Action: appends the identity, the four clamped scores, rank and the two prices the sheet
-   *         has, then every attached .html report; anything left blank is skipped. The files
-   *         are read back from the form itself, so the browser keeps their real name and
+   * Action: appends the identity, the four clamped scores, rank and the three prices the
+   *         sheet has, then every attached .html report; anything left blank is skipped. The
+   *         files are read back from the form itself, so the browser keeps their real name and
    *         MIME type.
    * Role: the exact request body Submit posts to /addcompany — no renaming layer, so a
    *       backend field is found by reading the `name` attributes of addcompany.html.
@@ -275,8 +277,8 @@
    *       anti_fragile_score, anti_fragile_analysis and industry_map are spelled the way the
    *       model spells them, so a section is never dropped. There is no `date` part (the
    *       model types `date` as None and the row is dated server-side), and no
-   *       `current_price` part either — the sheet has no such box, because the model's
-   *       prices are good_price, target_price and bad_price only.
+   *       `current_price` part either — CompanyUploadIn has no such field. The model's prices
+   *       are good_price, target_price and bad_price, and the sheet now enters all three.
    */
   function buildSubmission(form, scores) {
     const body = new FormData();
@@ -293,9 +295,11 @@
     add('anti_fragile_score', scores.antifragileScore);
     add('growth_score', scores.growthScore);
     add('rank', scores.rank);
-    // No current_price: the sheet has no such box, and CompanyUploadIn has no such field —
-    // an unknown part is dropped (or a 422 under extra="forbid"). The model's prices are
-    // good_price / target_price / bad_price; the sheet enters target and bad.
+    // The model's three prices, each part posted only when its box was filled (add() skips
+    // blanks): good_price / target_price / bad_price. There is no current_price part —
+    // CompanyUploadIn has no such field, and an unknown part is dropped (or a 422 under
+    // extra="forbid").
+    add('good_price', scores.goodPrice);
     add('target_price', scores.targetPrice);
     add('bad_price', scores.badPrice);
 
@@ -558,6 +562,7 @@
       cyclicalScore: scores.cyclicalScore,
       antifragileScore: scores.antifragileScore,
       growthScore: scores.growthScore,
+      goodPrice: scores.goodPrice,
       targetPrice: scores.targetPrice,
       badPrice: scores.badPrice,
       rank: scores.rank
@@ -674,8 +679,8 @@
     // multipart/form-data on purpose, and no Content-Type header: a FormData body makes
     // fetch write `multipart/form-data; boundary=<random>` itself. Hand-setting the header
     // would drop the boundary, so the server could take the scores but never parse a report.
-    submission = buildSubmission(form, scores);
-    console.log ("the submission", submission)
+    const submission = buildSubmission(form, scores);
+    console.log(LOG_PREFIX + ' submission', submission);
     return fetch(SUBMIT_PATH, {
       method: 'POST',
       body: submission,
