@@ -509,8 +509,16 @@
  *   GET  https://api.kidsfunbank.ca/getuser            -> { user_name, ... } for "Welcome, <user>"
  *   GET  https://api.kidsfunbank.ca/companies          -> { count, companies: [ record, ... ] }
  *   GET  https://api.kidsfunbank.ca/companies/{symbol} -> one record, every analysis column
- *   GET  https://api.kidsfunbank.ca/companies/{symbol}/analysis/{field} -> that report (text/html)
+ *   GET  https://api.kidsfunbank.ca/companies/{path}   -> that .html document (text/html)
  *   POST https://api.kidsfunbank.ca/logout             -> clears the session_id cookie
+ *
+ * {path} is the column value itself: "/app/company_analysis/0700.HK/6. 腾讯….html" without
+ * its leading slash (the URL already supplies one) and with each segment percent-encoded, so
+ * "/companies/app/company_analysis/0700.HK/6.%20腾讯%E2%80%A6.html". The API adds nothing to
+ * the path — no symbol lookup, no root prefix — so a report link is built from what the row
+ * stores, not from the section name. The route that took a section name instead,
+ * /companies/{symbol}/analysis/{field}, no longer exists (it answers 404: the path it is
+ * handed is outside /app/company_analysis).
  *
  * There is no /getalldata route on the API (it answers 404): the
  * everything-about-one-company read is GET /companies/{symbol} - "One company,
@@ -535,8 +543,9 @@ const ENDPOINTS = {
   user: '/getuser',
   companies: '/companies',
   company: (symbol) => '/companies/' + encodeURIComponent(symbol),
-  analysis: (symbol, field) =>
-    '/companies/' + encodeURIComponent(symbol) + '/analysis/' + encodeURIComponent(field),
+  // A section column holds an absolute disk path, and /companies/{path} serves exactly that
+  // path, so encodePath() drops its leading slash and encodes each segment.
+  document: (path) => '/companies' + encodePath(path),
   logout: '/logout'
 };
 const REQUEST_TIMEOUT_MS = 10000;
@@ -551,8 +560,8 @@ const SELF_PAGE = 'viewcompany.html';
 /**
  * The thirteen analysis sections, in the order the paper form lists them (and
  * the order addcompany.html posts them in). "key" is the wire name the API
- * stores - it is also the `field` that /companies/{symbol}/analysis/{field}
- * accepts - and "label" is what the analyst sees beside each mini table.
+ * stores - the name of this section's column, which holds the saved document's
+ * path - and "label" is what the analyst sees beside each mini table.
  */
 const SECTIONS = [
   { key: 'company_profile', label: 'Company profile' },
@@ -693,6 +702,25 @@ function fileName(path) {
   const clean = text.split('?')[0].split('#')[0];
   const parts = clean.split('/').filter(Boolean);
   return parts.length ? parts[parts.length - 1] : text;
+}
+
+/**
+ * Input: a stored document path ("/app/company_analysis/0700.HK/6. 腾讯….html").
+ * Output: the same path as a URL tail — "/app/company_analysis/0700.HK/6.%20腾讯%E2%80%A6.html",
+ *         with a query string or fragment chopped off — or '' when there is no path.
+ * Action: splits on "/", drops the empty segments (so a leading slash goes with them, and the
+ *         one /companies supplies is the one the URL uses), and percent-encodes every remaining
+ *         segment — report names carry spaces, dots and Chinese characters.
+ * Role: the single place a stored path becomes a URL, used by ENDPOINTS.document.
+ */
+function encodePath(path) {
+  const text = asText(path);
+  if (text === EMPTY) return '';
+
+  const segments = text.split('?')[0].split('#')[0].split('/').filter(Boolean);
+  return '/' + segments.map(function (segment) {
+    return encodeURIComponent(segment);
+  }).join('/');
 }
 
 /**
@@ -1003,15 +1031,15 @@ function renderNote(record) {
 }
 
 /**
- * Input: one history entry ({date, path}), its section and the company symbol.
+ * Input: one history entry ({date, path}) from toHistory().
  * Output: a <tr> with the date and a link to the report.
- * Action: formats the date; the html cell links to
- *         /companies/{symbol}/analysis/{field}, which serves that section's
- *         stored document (the API sandboxes it, so it cannot run scripts),
- *         and names the file. The full stored path goes in the tooltip.
+ * Action: formats the date; the html cell links to API_BASE + /companies/<the stored path>,
+ *         which serves that document as it was uploaded (the API sandboxes it, so it cannot run
+ *         scripts or reach the session cookie), and names the file. The full stored path goes in
+ *         the tooltip. An entry with no usable path stays plain text.
  * Role: the growing row of a mini table.
  */
-function buildEntryRow(section, entry, symbol) {
+function buildEntryRow(entry) {
   const row = document.createElement('tr');
 
   const date = document.createElement('td');
@@ -1021,13 +1049,14 @@ function buildEntryRow(section, entry, symbol) {
   const cell = document.createElement('td');
   cell.className = 'mini-html';
   const name = fileName(entry.path);
+  const path = asText(entry.path);
 
-  if (symbol) {
+  if (path) {
     const link = document.createElement('a');
-    link.href = API_BASE + ENDPOINTS.analysis(symbol, section.key);
+    link.href = API_BASE + ENDPOINTS.document(path);
     link.target = '_blank';
     link.rel = 'noopener';
-    link.title = entry.path;
+    link.title = path;
     link.textContent = name;
     cell.appendChild(link);
   } else {
@@ -1039,15 +1068,14 @@ function buildEntryRow(section, entry, symbol) {
 }
 
 /**
- * Input: one section definition, its entries, and the company symbol ('' when
- *        the record has none).
+ * Input: one section definition and its entries.
  * Output: a .mini-wrap <div> holding the section's date/html table.
  * Action: builds thead (date | html) once, then one row per entry - or a single
  *         muted "Not uploaded yet" row when the section holds no document - and
  *         makes the wrapper a keyboard-reachable scroll region.
  * Role: the mini table under each analysis label; it grows with the entries.
  */
-function buildMiniTable(section, entries, symbol) {
+function buildMiniTable(section, entries) {
   const wrap = document.createElement('div');
   wrap.className = 'mini-wrap';
   wrap.tabIndex = 0;
@@ -1075,7 +1103,7 @@ function buildMiniTable(section, entries, symbol) {
 
   const body = document.createElement('tbody');
   if (entries.length) {
-    for (const entry of entries) body.appendChild(buildEntryRow(section, entry, symbol));
+    for (const entry of entries) body.appendChild(buildEntryRow(entry));
   } else {
     const row = document.createElement('tr');
     const date = document.createElement('td');
@@ -1097,7 +1125,8 @@ function buildMiniTable(section, entries, symbol) {
  * Input: one company record.
  * Output: none.
  * Action: rebuilds #reports as thirteen label + table blocks (SECTIONS order),
- *         greying the label of a section that holds no document.
+ *         greying the label of a section that holds no document. Each row links to the
+ *         stored path the column names, so no symbol is needed to open a report.
  * Role: the body of the page - the part that grows as the company is re-analysed.
  */
 function renderReports(record) {
@@ -1105,7 +1134,6 @@ function renderReports(record) {
   if (!reports) return;
   reports.textContent = '';
 
-  const symbol = asText(pick(record, ['symbol', 'ticker', 'code']));
   const fragment = document.createDocumentFragment();
 
   for (const section of SECTIONS) {
@@ -1119,7 +1147,7 @@ function renderReports(record) {
     const entries = toHistory(record, section.key);
     if (!entries.length) title.dataset.empty = 'true';
 
-    box.append(title, buildMiniTable(section, entries, symbol === EMPTY ? '' : symbol));
+    box.append(title, buildMiniTable(section, entries));
     fragment.appendChild(box);
   }
 
