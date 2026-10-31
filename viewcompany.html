@@ -711,7 +711,9 @@ function fileName(path) {
  * Action: splits on "/", drops the empty segments (so a leading slash goes with them, and the
  *         one /companies supplies is the one the URL uses), and percent-encodes every remaining
  *         segment — report names carry spaces, dots and Chinese characters.
- * Role: the single place a stored path becomes a URL, used by ENDPOINTS.document.
+ * Role: the single place a stored path becomes a URL, used by ENDPOINTS.document. A blank or
+ *       missing path is EMPTY once asText() has seen it, and comes back as '' — never as the
+ *       bare /companies route.
  */
 function encodePath(path) {
   const text = asText(path);
@@ -1051,7 +1053,7 @@ function buildEntryRow(entry) {
   const name = fileName(entry.path);
   const path = asText(entry.path);
 
-  if (path) {
+  if (path !== EMPTY) {
     const link = document.createElement('a');
     link.href = API_BASE + ENDPOINTS.document(path);
     link.target = '_blank';
