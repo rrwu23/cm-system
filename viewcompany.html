@@ -602,15 +602,16 @@ const TILES = [
  * Role: lets one tile or column read snake_case and camelCase payloads alike.
  */
 function pick(record, keys, type) {
+  let value
   console.log(`debug check if record variable is in wanted format: ${JSON.stringify(record)}`)
   if (!record || typeof record !== 'object') return undefined;
   for (const key of keys) {
-    if (type="numerical_value"){
-      const value = record["numerical_values"][key];
-    } else if (type="analysis_path"){
-      const value = record["analysis_files"][key]
-    } else if (type="other"){
-      const value = record[key]
+    if (type==="numerical_value"){
+      value = record["numerical_values"][key];
+    } else if (type==="analysis_path"){
+      value = record["analysis_files"][key]
+    } else if (type==="other"){
+      value = record[key]
     } else {
       console.error("pick function: invalid type")
       return;
