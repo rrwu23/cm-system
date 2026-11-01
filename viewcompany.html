@@ -606,9 +606,11 @@ function pick(record, keys, type) {
   if (!record || typeof record !== 'object') return undefined;
   for (const key of keys) {
     if (type="numerical_value"){
-      const value = record.numerical_values[key];
+      const value = record[numerical_values][key];
     } else if (type="analysis_path"){
-      const value = record.analysis_files[key]
+      const value = record[analysis_files][key]
+    } else if (type="other"){
+      const value = record[key]
     } else {
       console.error("pick function: invalid type")
       return;
@@ -1278,6 +1280,7 @@ async function openBySymbol(symbol) {
     renderRecord(record);
     rememberSymbol(symbol);
   } catch (error) {
+    console.log ("error in openBySymbol: ", error)
     if (isSignedOut(error)) {
       leaveForSignIn();
       return;
