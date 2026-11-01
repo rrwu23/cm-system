@@ -558,7 +558,7 @@ const ENDPOINTS = {
   // A company name is a key on that same one-company route: /companies-s/Tencent answers the
   // record /companies-s/0700.HK answers, so ?name=… costs one request, not a list read first.
   // (/companies/<name> is the *document* route — it answered 404 for a name.)
-  company_name: (name) => '/companies-s/' + encodeURIComponent(name)
+  company_name: (name) => '/companies/' + encodeURIComponent(name)
 };
 const REQUEST_TIMEOUT_MS = 10000;
 const EMPTY = '\u2014';
