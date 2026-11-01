@@ -450,7 +450,7 @@
     <a class="home-link" href="home.html">&larr; Back to dashboard</a>
   </nav>
 
-  <!-- The heading is the company name from /companies/{symbol} -->
+  <!-- The heading is the company name from /companies-s/{symbol} -->
   <section class="identity" aria-labelledby="company-name">
     <h1 class="company-name" id="company-name" data-state="loading">Company view</h1>
     <p class="company-note" id="company-note" role="status" aria-live="polite">Reading the company file&hellip;</p>
@@ -506,11 +506,11 @@
  * ---------------------------------------------------------------------------
  * Data contract (all reads are best-effort: every failure is explained in the
  * note under the company name instead of a blank page)
- *   GET  https://api.kidsfunbank.ca/getuser            -> { user_name, ... } for "Welcome, <user>"
- *   GET  https://api.kidsfunbank.ca/companies          -> { count, companies: [ record, ... ] }
- *   GET  https://api.kidsfunbank.ca/companies/{symbol} -> one record, every analysis column
- *   GET  https://api.kidsfunbank.ca/companies/{path}   -> that .html document (text/html)
- *   POST https://api.kidsfunbank.ca/logout             -> clears the session_id cookie
+ *   GET  https://api.kidsfunbank.ca/getuser             -> { user_name, ... } for "Welcome, <user>"
+ *   GET  https://api.kidsfunbank.ca/companies           -> { count, companies: [ record, ... ] }
+ *   GET  https://api.kidsfunbank.ca/companies-s/{symbol} -> one record, every analysis column
+ *   GET  https://api.kidsfunbank.ca/companies/{path}    -> that .html document (text/html)
+ *   POST https://api.kidsfunbank.ca/logout              -> clears the session_id cookie
  *
  * {path} is the column value itself: "/app/company_analysis/0700.HK/6. 腾讯….html" without
  * its leading slash (the URL already supplies one) and with each segment percent-encoded, so
@@ -521,8 +521,11 @@
  * handed is outside /app/company_analysis).
  *
  * There is no /getalldata route on the API (it answers 404): the
- * everything-about-one-company read is GET /companies/{symbol} - "One company,
- * including every analysis column" - so that is the call this page makes. Its
+ * everything-about-one-company read is GET /companies-s/{symbol} - "One company,
+ * including every analysis column" - so that is the call this page makes. (It used
+ * to be GET /companies/{symbol}; that spelling now answers 500, so the -s form is
+ * the only one this page uses. The list keeps /companies, and the document route
+ * keeps /companies/{path}.) Its
  * answer is two objects: `numerical_values` (symbol, company_name, the four
  * scores, the three prices, rank, date, current_price, price_date, wl_base,
  * wl_optimistic) and `analysis_files`, a list with one item per upload.
@@ -545,7 +548,9 @@ const API_BASE = 'https://api.kidsfunbank.ca';
 const ENDPOINTS = {
   user: '/getuser',
   companies: '/companies',
-  company: (symbol) => '/companies/' + encodeURIComponent(symbol),
+  // The one-company read lives at /companies-s/{symbol} (the old /companies/{symbol}
+  // spelling answers 500 now). The list and the document route kept their names.
+  company: (symbol) => '/companies-s/' + encodeURIComponent(symbol),
   // A section column holds an absolute disk path, and /companies/{path} serves exactly that
   // path, so encodePath() drops its leading slash and encodes each segment.
   document: (path) => '/companies' + encodePath(path),
@@ -949,7 +954,7 @@ function toUsername(payload) {
 }
 
 /**
- * Input: an API path such as "/companies/AAPL".
+ * Input: an API path such as "/companies-s/AAPL".
  * Output: the parsed JSON body.
  * Action: GETs API_BASE + path with credentials: 'include' - the session is the
  *         HttpOnly session_id cookie, which a cross-origin request only carries
@@ -1330,7 +1335,7 @@ async function load() {
 /**
  * Input: a symbol such as "AAPL".
  * Output: none.
- * Action: GETs /companies/{symbol} - the API's everything-about-one-company read
+ * Action: GETs /companies-s/{symbol} - the API's everything-about-one-company read
  *         - and draws it; a 404 (Unknown company) falls back to the picker, a
  *         401/403 goes to login.html, and anything else is explained in the note.
  * Role: the main read of the page.
