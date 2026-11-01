@@ -601,10 +601,17 @@ const TILES = [
  * Action: walks the key list in order and returns the first hit.
  * Role: lets one tile or column read snake_case and camelCase payloads alike.
  */
-function pick(record, keys) {
+function pick(record, keys, type) {
   if (!record || typeof record !== 'object') return undefined;
   for (const key of keys) {
-    const value = record[key];
+    if (type="numerical_value"){
+      const value = record.numerical_values[key];
+    } else if (type="analysis_path"){
+      const value = record.analysis_files[key]
+    } else {
+      console.error("pick function: invalid type")
+      return;
+    }
     if (value !== null && value !== undefined && value !== '') return value;
   }
   return undefined;
@@ -762,8 +769,9 @@ function toEntry(item, fallbackDate) {
  *       the table grows as the section is re-analysed.
  */
 function toHistory(record, field) {
-  const fallbackDate = pick(record, ['date', 'updated_at', 'scored_at']);
-  const sources = [record[field + '_history'], record['history_' + field], record[field]];
+  record_company = record.analysis_files;
+  const fallbackDate = pick(record, ['date', 'updated_at', 'scored_at'], "numerical_value");
+  const sources = [record_company[field + '_history'], record_company['history_' + field], record_company[field]];
 
   for (const source of sources) {
     if (source === null || source === undefined || source === '') continue;
@@ -1014,7 +1022,7 @@ function renderNote(record) {
   if (!note) return;
   note.textContent = '';
 
-  const rank = asText(pick(record, ['rank', 'grade']));
+  const rank = asText(pick(record, ['rank', 'grade'], "numerical_value"));
   if (rank !== EMPTY) {
     const pill = document.createElement('span');
     pill.className = 'rank-pill';
