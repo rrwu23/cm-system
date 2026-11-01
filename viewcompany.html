@@ -555,7 +555,10 @@ const ENDPOINTS = {
   // path, so encodePath() drops its leading slash and encodes each segment.
   document: (path) => '/companies' + encodePath(path),
   logout: '/logout',
-  company_name: (name) => '/companies/' + encodeURIComponent(name)
+  // A company name is a key on that same one-company route: /companies-s/Tencent answers the
+  // record /companies-s/0700.HK answers, so ?name=… costs one request, not a list read first.
+  // (/companies/<name> is the *document* route — it answered 404 for a name.)
+  company_name: (name) => '/companies-s/' + encodeURIComponent(name)
 };
 const REQUEST_TIMEOUT_MS = 10000;
 const EMPTY = '\u2014';
@@ -1390,21 +1393,61 @@ async function openBySymbol(symbol) {
 }
 
 /**
- * Input: a company name (or symbol) typed into home.html's textbox.
+ * Input: a company name from the URL (?name=…) — home.html sends the spelling /all-names
+ *        carries; a link someone pasted may carry anything.
  * Output: none.
- * Action: GETs /companies, finds the closest match, then opens it by symbol so
- *         the rest of the page is identical to a direct link; no match explains
- *         itself and shows the picker of every stored company.
- * Role: turns the dashboard's free-text lookup into a company file.
+ * Action: GETs /companies-s/<the name>. The API resolves a name on the same route as a
+ *         symbol, so an exact name costs one request and draws exactly what a ?symbol= link
+ *         draws; a 404 falls to closestMatch(), which reads the list once and tries the
+ *         closest spelling before giving up to the picker; any other failure explains itself.
+ * Role: the ?name= half of the dashboard's "View company" — the drill-down a name typed into
+ *       home.html's textbox lands on.
  */
 async function openByName(query) {
   setName(query, 'loading');
   setNote('Looking up \u201c' + query + '\u2026');
 
   try {
-    const record = await fetchJson(ENDPOINTS.company_name(name));
+    const record = await fetchJson(ENDPOINTS.company_name(query));
+
     if (record) {
       renderRecord(record);
+      const symbol = asText(pick(record, ['symbol', 'ticker', 'code'], 'numerical_value'));
+      if (symbol !== EMPTY) rememberSymbol(symbol);
+      return;
+    }
+
+    await openPicker('No company called \u201c' + query + '\u201d is on file. Pick one:');
+  } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+    if (error && error.status === 404) {
+      await closestMatch(query);
+      return;
+    }
+
+    renderBlank('Could not read \u201c' + query + '\u201d \u2014 ' + describeError(error));
+  }
+}
+
+/**
+ * Input: a name that /companies-s/<name> did not answer.
+ * Output: none.
+ * Action: reads GET /companies once, opens the row findCompany() picks (an exact name first,
+ *         then a name that starts with what was typed, then one that contains it) by its
+ *         symbol; nothing picked explains itself and shows the picker of every stored company.
+ * Role: the second chance for a half-typed name — and the reason findCompany() is still here.
+ */
+async function closestMatch(query) {
+  try {
+    const list = toList(await fetchJson(ENDPOINTS.companies));
+    const match = findCompany(list, query);
+    const symbol = match ? asText(pick(match, ['symbol', 'ticker', 'code'], 'other')) : EMPTY;
+
+    if (match && symbol !== EMPTY) {
+      await openBySymbol(symbol);
       return;
     }
 
