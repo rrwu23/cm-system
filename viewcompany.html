@@ -978,7 +978,7 @@ function renderTiles(record) {
     const node = document.getElementById(tile.id);
     if (!node) continue;
 
-    const raw = pick(record, tile.keys, "numerical value");
+    const raw = pick(record, tile.keys, "numerical_value");
     let text;
     if (tile.kind === 'score') text = formatScore(raw);
     else if (tile.kind === 'money') text = formatMoney(raw);
