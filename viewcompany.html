@@ -884,9 +884,6 @@ function toUsername(payload) {
  * Role: the single network helper for the user, list and company reads.
  */
 async function fetchJson(path) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
     const response = await fetch(API_BASE + path, {
       method: 'GET',
       headers: { Accept: 'application/json' },
@@ -903,9 +900,6 @@ async function fetchJson(path) {
     record_json = await response.json()
     console.log(`debug function fetchJson, fetched json object format: ${JSON.stringify(record_json)}`)
     return ;
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 /**
