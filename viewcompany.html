@@ -602,7 +602,7 @@ const TILES = [
  * Role: lets one tile or column read snake_case and camelCase payloads alike.
  */
 function pick(record, keys, type) {
-  console.log(`debug check if record variable is in wanted format: ${record}`)
+  console.log(`debug check if record variable is in wanted format: ${JSON.stringify(record)}`)
   if (!record || typeof record !== 'object') return undefined;
   for (const key of keys) {
     if (type="numerical_value"){
