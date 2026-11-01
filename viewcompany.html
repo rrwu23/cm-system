@@ -1284,6 +1284,8 @@ async function openBySymbol(symbol) {
     if (error && error.status === 404) {
       await openPicker('No company called \u201c' + symbol + '\u201d is on file. Pick one:');
       return;
+    } else {
+      console.log("uncaught error: ", error)
     }
 
     renderBlank('Could not read ' + symbol + ' \u2014 ' + describeError(error));
