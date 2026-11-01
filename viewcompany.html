@@ -522,16 +522,19 @@
  *
  * There is no /getalldata route on the API (it answers 404): the
  * everything-about-one-company read is GET /companies/{symbol} - "One company,
- * including every analysis column" - so that is the call this page makes. A row
- * carries company_name, symbol, the four scores, the three prices, rank, date,
- * current_price, price_date, wl_base, wl_optimistic and the thirteen narrative
- * columns, each of which holds the path of that section's .html document.
+ * including every analysis column" - so that is the call this page makes. Its
+ * answer is two objects: `numerical_values` (symbol, company_name, the four
+ * scores, the three prices, rank, date, current_price, price_date, wl_base,
+ * wl_optimistic) and `analysis_files`, a list with one item per upload.
  *
- * A section is drawn as one row per document: the stored value is normally a
- * single path (dated by the row's `date`), but an array - or a {date, html}
- * object, or a `<field>_history` list - becomes one row per entry, which is what
- * makes the mini tables grow as the company is re-analysed. No document means a
- * single muted "Not uploaded yet" row, so every table keeps its two columns.
+ * An analysis_files item either names its own section - {field: "moat_analysis",
+ * path: "/app/...html", date: "2026-10-28"} - or maps sections to their document
+ * - {moat_analysis: "/app/...html", date: "2026-10-28"} - and a mapped value may
+ * be a list of documents. A section is drawn as one row per document, stamped
+ * with the date that item says the document was added (else the record's
+ * numerical_values.date), so the mini tables grow as the company is
+ * re-analysed. No document means a single muted "Not uploaded yet" row, so
+ * every table keeps its two columns.
  *
  * The session is the HttpOnly session_id cookie the API set at sign-in: these
  * requests only carry it with credentials: 'include', because the page lives on
@@ -736,13 +739,50 @@ function encodePath(path) {
   }).join('/');
 }
 
+/** The keys an analysis_files entry may use for the document it stores. */
+const ENTRY_PATH_KEYS = [
+  'html', 'path', 'file', 'file_path', 'file_name', 'document',
+  'analysis_path', 'analysis_file', 'url', 'value'
+];
+
+/** The keys an analysis_files entry may use for the date its document was added. */
+const ENTRY_DATE_KEYS = [
+  'date', 'added_at', 'added_date', 'added_on',
+  'created_at', 'uploaded_at', 'updated_at', 'stamp'
+];
+
+/** The keys an analysis_files entry may use to name the section it belongs to. */
+const ENTRY_SECTION_KEYS = [
+  'field', 'field_name', 'analysis_field', 'section', 'section_key', 'column', 'key'
+];
+
 /**
- * Input: one history entry from the API (a path string, or an object such as
- *        {date: "2026-10-29", html: "/app/..."}), plus the row's own date.
+ * Input: one analysis_files entry (an object) and a list of accepted key spellings,
+ *        best first.
+ * Output: the first value that is present and not null / undefined / '', or undefined.
+ * Action: reads each key off the object directly, in order.
+ * Role: pick() only reads a wrapped record (analysis_files / numerical_values), but an
+ *       entry of the report list is the raw object, so it gets its own reader. One reader
+ *       serves the section name, the document and the stamp, so a re-spelled payload
+ *       still lands in the right mini table.
+ */
+function readFirst(object, keys) {
+  if (!object || typeof object !== 'object') return undefined;
+  for (const key of keys) {
+    const value = object[key];
+    if (value !== null && value !== undefined && value !== '') return value;
+  }
+  return undefined;
+}
+
+/**
+ * Input: one document from record.analysis_files (a path string, or an object such as
+ *        {field: "moat_analysis", path: "/app/...", date: "2026-10-28"}), plus the date
+ *        the enclosing entry was added.
  * Output: {date, path} with both parts as text, or null when there is no path.
  * Action: accepts a bare path, or an object under any of the usual names for the
- *         document (html / path / file / url / value) and the stamp (date /
- *         created_at / uploaded_at / ...), falling back to the row's date.
+ *         document (html / path / file / ...) and the stamp (date / added_at / ...),
+ *         falling back to the entry's own date.
  * Role: normalises one row of a mini table, whatever shape the API sends.
  */
 function toEntry(item, fallbackDate) {
@@ -750,12 +790,12 @@ function toEntry(item, fallbackDate) {
     const path = item.trim();
     return path ? { date: asText(fallbackDate), path } : null;
   }
-  if (!item || typeof item !== 'object') return null;
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
 
-  const path = pick(item, ['html', 'path', 'file', 'file_path', 'file_name', 'document', 'url', 'value']);
+  const path = readFirst(item, ENTRY_PATH_KEYS);
   if (asText(path) === EMPTY) return null;
 
-  const date = pick(item, ['date', 'created_at', 'uploaded_at', 'updated_at', 'stamp']);
+  const date = readFirst(item, ENTRY_DATE_KEYS);
   return {
     date: asText(date === undefined ? fallbackDate : date),
     path: String(path)
@@ -763,32 +803,65 @@ function toEntry(item, fallbackDate) {
 }
 
 /**
- * Input: one company record, and the analysis field to read.
- * Output: an array of {date, path} entries - empty when nothing is stored.
- * Action: tries `<field>_history`, then `history_<field>`, then the column
- *         itself; each source may be a single path / object or a list, and the
- *         first source that yields rows wins. Every entry is dated by its own
- *         stamp, or by the row's `date` when it has none.
- * Role: decides how many rows a mini table gets - one per stored document, so
- *       the table grows as the section is re-analysed.
+ * Input: one company record.
+ * Output: an object keyed by the thirteen SECTIONS keys, each holding an array of
+ *         {date, path} entries - every array empty when nothing is stored.
+ * Action: walks record.analysis_files once. Each item is one upload: it either names
+ *         its own section ({field, path, date}) or maps sections to their documents
+ *         ({moat_analysis: "/app/...", date}), and a mapped value may be a list of
+ *         documents. A row is stamped with the date it was added - the document's own
+ *         stamp, else the item's, else the record's numerical_values.date - and a path
+ *         the list repeats is drawn once.
+ * Role: the single read of the report list; renderReports() then draws one mini table
+ *       per section, so the tables grow as the company is re-analysed.
  */
-function toHistory(record, field) {
-  record_company = record.analysis_files;
-  const fallbackDate = pick(record, ['date', 'updated_at', 'scored_at'], "numerical_value");
-  const sources = [record_company[field + '_history'], record_company['history_' + field], record_company[field]];
+function toHistories(record) {
+  const history = {};
+  for (const section of SECTIONS) history[section.key] = [];
 
-  for (const source of sources) {
-    if (source === null || source === undefined || source === '') continue;
+  const files = record ? record.analysis_files : undefined;
+  if (!Array.isArray(files)) return history;
 
-    const entries = [];
+  const numbers = record.numerical_values && typeof record.numerical_values === 'object'
+    ? record.numerical_values
+    : {};
+  const fallbackDate = readFirst(numbers, ['date', 'updated_at', 'scored_at']);
+
+  function add(field, source, date) {
+    const entries = history[field];
+    if (!entries || source === null || source === undefined || source === '') return;
     for (const item of Array.isArray(source) ? source : [source]) {
-      const entry = toEntry(item, fallbackDate);
-      if (entry) entries.push(entry);
+      const entry = toEntry(item, date === undefined ? fallbackDate : date);
+      if (!entry) continue;
+      const known = entries.some(function (kept) { return kept.path === entry.path; });
+      if (!known) entries.push(entry);
     }
-    if (entries.length) return entries;
   }
 
-  return [];
+  for (const item of files) {
+    if (!item || typeof item !== 'object') continue;
+
+    const date = readFirst(item, ENTRY_DATE_KEYS);
+
+    // One document per entry: the entry says which section it belongs to.
+    const section = readFirst(item, ENTRY_SECTION_KEYS);
+    if (section !== undefined) {
+      add(String(section).trim(), item, date);
+      continue;
+    }
+
+    // One upload: every section key is a document (or a list of them).
+    for (const field of Object.keys(history)) {
+      for (const key of [field, field + '_history', 'history_' + field]) {
+        const source = item[key];
+        if (source === null || source === undefined || source === '') continue;
+        if (Array.isArray(source) && !source.length) continue;
+        add(field, source, date);
+      }
+    }
+  }
+
+  return history;
 }
 
 
@@ -1019,7 +1092,7 @@ function renderNote(record) {
 }
 
 /**
- * Input: one history entry ({date, path}) from toHistory().
+ * Input: one history entry ({date, path}) from toHistories().
  * Output: a <tr> with the date and a link to the report.
  * Action: formats the date; the html cell links to API_BASE + /companies/<the stored path>,
  *         which serves that document as it was uploaded (the API sandboxes it, so it cannot run
@@ -1113,8 +1186,10 @@ function buildMiniTable(section, entries) {
  * Input: one company record.
  * Output: none.
  * Action: rebuilds #reports as thirteen label + table blocks (SECTIONS order),
- *         greying the label of a section that holds no document. Each row links to the
- *         stored path the column names, so no symbol is needed to open a report.
+ *         greying the label of a section that holds no document. The entries come from
+ *         one pass over record.analysis_files (toHistories()), so every stored document
+ *         is drawn in its own section's mini table with the date it was added; each row
+ *         links to the stored path, so no symbol is needed to open a report.
  * Role: the body of the page - the part that grows as the company is re-analysed.
  */
 function renderReports(record) {
@@ -1123,6 +1198,7 @@ function renderReports(record) {
   reports.textContent = '';
 
   const fragment = document.createDocumentFragment();
+  const history = toHistories(record);
 
   for (const section of SECTIONS) {
     const box = document.createElement('div');
@@ -1132,7 +1208,7 @@ function renderReports(record) {
     title.className = 'report-name';
     title.textContent = section.label;
 
-    const entries = toHistory(record, section.key);
+    const entries = history[section.key] || [];
     if (!entries.length) title.dataset.empty = 'true';
 
     box.append(title, buildMiniTable(section, entries));
