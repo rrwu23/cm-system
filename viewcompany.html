@@ -555,7 +555,7 @@ const ENDPOINTS = {
   // path, so encodePath() drops its leading slash and encodes each segment.
   document: (path) => '/companies' + encodePath(path),
   logout: '/logout',
-  company_name: (name) => '/companies-s/' + encodeURIComponent(name)
+  company_name: (name) => '/companies/' + encodeURIComponent(name)
 };
 const REQUEST_TIMEOUT_MS = 10000;
 const EMPTY = '\u2014';
@@ -604,28 +604,45 @@ const TILES = [
   { id: 'tile-wl-optimistic', label: 'WL ratio (optimistic)', keys: ['wl_optimistic', 'wl_ratio_optimistic', 'wlRatioOptimistic'], kind: 'ratio' }
 ];
 
+/** The two wrappers a one-company record may put its values in. */
+const NUMBERS_WRAPPER = 'numerical_values';
+const FILES_WRAPPER = 'analysis_files';
+
 /**
- * Input: a record object and a list of accepted key spellings, best first.
+ * Input: a record object, a list of accepted key spellings (best first), and an optional
+ *        wrapper name — "numerical_value" (record.numerical_values), "analysis_path"
+ *        (record.analysis_files) or "other" (the record's own fields).
  * Output: the first value that is present and not null / undefined / ''.
- * Action: walks the key list in order and returns the first hit.
- * Role: lets one tile or column read snake_case and camelCase payloads alike.
+ * Action: walks the key list in order and returns the first hit, reading the named wrapper
+ *         first and then the record's own fields — so both shapes the API answers with are
+ *         served by one reader: /companies-s/{symbol} wraps the numbers in
+ *         numerical_values and the documents in analysis_files, while /companies answers a
+ *         flat row ({id, symbol, company_name, company_profile, ...}). A missing wrapper is
+ *         skipped rather than dereferenced, so an empty record (renderBlank) reads as EMPTY
+ *         instead of throwing.
+ * Role: lets one tile, column, company row or picker chip read snake_case and camelCase
+ *       payloads alike, whatever their shape — and is what lets a name from /all-names
+ *       (a flat row) resolve to its symbol, i.e. what makes ?name=… work.
  */
 function pick(record, keys, type) {
-  let value
-  console.log(`debug check if record variable is in wanted format: ${JSON.stringify(record)}`)
   if (!record || typeof record !== 'object') return undefined;
+
+  const wrappers = type === 'numerical_value' ? [NUMBERS_WRAPPER]
+    : type === 'analysis_path' ? [FILES_WRAPPER]
+    : [NUMBERS_WRAPPER, FILES_WRAPPER];
+
+  const sources = [];
+  for (const wrapper of wrappers) {
+    const inner = record[wrapper];
+    if (inner && typeof inner === 'object') sources.push(inner);
+  }
+  sources.push(record);
+
   for (const key of keys) {
-    if (type==="numerical_value"){
-      value = record["numerical_values"][key];
-    } else if (type==="analysis_path"){
-      value = record["analysis_files"][key]
-    } else if (type==="other"){
-      value = record[key]
-    } else {
-      console.error("pick function: invalid type")
-      return;
+    for (const source of sources) {
+      const value = source[key];
+      if (value !== null && value !== undefined && value !== '') return value;
     }
-    if (value !== null && value !== undefined && value !== '') return value;
   }
   return undefined;
 }
