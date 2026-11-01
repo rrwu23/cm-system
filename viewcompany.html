@@ -1149,8 +1149,8 @@ function renderReports(record) {
  * Role: the single draw for a loaded company.
  */
 function renderRecord(record) {
-  const name = asText(pick(record, ['company_name', 'companyName', 'name']));
-  const symbol = asText(pick(record, ['symbol', 'ticker', 'code']));
+  const name = asText(pick(record, ['company_name', 'companyName', 'name'], "numerical_value"));
+  const symbol = asText(pick(record, ['symbol', 'ticker', 'code'], "numerical_value"));
   const heading = name === EMPTY ? symbol : name;
 
   setName(heading === EMPTY ? 'Company view' : heading, heading === EMPTY ? 'empty' : 'ready');
