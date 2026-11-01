@@ -273,6 +273,23 @@
 
   .btn-amber:active { transform: translateY(0); }
 
+  /* ---------- The one button that can have nowhere to go ----------
+     "View company" is grayed out while the box holds something neither /all-names nor
+     /all-symbols knows (syncViewLink() decides; a click on it is swallowed). It keeps its
+     size and its href, so the row never jumps and re-enabling costs no rewrite. */
+  .btn.is-disabled,
+  .btn.is-disabled:hover,
+  .btn.is-disabled:active,
+  .btn.is-disabled:focus-visible {
+    border-color: var(--line);
+    background: #e7e9ee;
+    color: var(--ink-faint);
+    box-shadow: none;
+    outline: none;
+    transform: none;
+    cursor: not-allowed;
+  }
+
   .btn:focus-visible,
   .company-input:focus-visible,
   .link-btn:focus-visible,
@@ -504,7 +521,8 @@
   <!-- Yellow textbox + matching "View company" link. The href is kept in step with
        what the box holds (viewcompany.html?symbol=… / ?name=…), so an empty box opens
        the picker. Focusing the box drops down the names and symbols that start with
-       what is typed — the two lists behind it are /all-names and /all-symbols. -->
+       what is typed — the two lists behind it are /all-names and /all-symbols — and the
+       button grays out (aria-disabled, is-disabled) while the box names neither. -->
   <section class="picker" aria-label="Choose a company">
     <div class="company-field">
       <label class="sr-only" for="company-input">Company name</label>
@@ -874,6 +892,12 @@ let drawnSuggestions = [];
 let activeSuggestion = -1;
 /** The merged [{value, kind}] list, kept after the first read so typing stays local. */
 let suggestionCache = null;
+/**
+ * That same list once it has arrived (null before then, and after a read that brought
+ * nothing back). Only a known list may gray "View company" out, so the button never
+ * punishes a visitor for a read that failed.
+ */
+let suggestionList = null;
 
 /**
  * Input: raw JSON payload from /all-names or /all-symbols.
@@ -917,7 +941,9 @@ function toStrings(payload) {
  * Output: a promise of [{ value, kind }] — names first, then symbols, one entry per value.
  * Action: reads /all-names and /all-symbols on the first call and caches the merged
  *         result; a list that fails counts as empty, and an empty merge is not cached, so
- *         a later focus asks again.
+ *         a later focus asks again. A merge that did bring rows is also remembered in
+ *         suggestionList for the "View company" guard, which is re-settled right away
+ *         because the box may already hold text.
  * Role: the page's only read of the two lists — everything after it is local filtering.
  */
 function loadSuggestions() {
@@ -937,7 +963,9 @@ function loadSuggestions() {
         items.push({ value: value, kind: kind });
       }
     }
-    if (!items.length) suggestionCache = null;   // nothing came back: ask again next time
+    suggestionList = items.length ? items : null;   // what the button guard may judge against
+    if (!items.length) suggestionCache = null;      // nothing came back: ask again next time
+    syncViewLink();                                 // the box may already hold something
     return items;
   });
 
@@ -961,6 +989,25 @@ function filterSuggestions(items, text) {
     if (hits.length === SUGGEST_LIMIT) break;
   }
   return hits;
+}
+
+/**
+ * Input: the merged suggestion list (null while it is still unknown) and the text in the box.
+ * Output: the entry whose value IS that text — ignoring case and surrounding spaces — or
+ *         null when the text is empty, the list is unknown, or nothing matches exactly.
+ * Action: an exact membership test, not a prefix one, over names and symbols alike; a name
+ *         wins over a symbol because names are merged first.
+ * Role: tells syncViewLink() whether the box names a real company, which is what decides
+ *       between an amber "View company" and a grayed-out one. Pure, so a probe can call it.
+ */
+function findSuggestion(items, text) {
+  const word = String(text || '').trim().toLowerCase();
+  if (!word || !items) return null;
+
+  for (const item of items) {
+    if (item.value.toLowerCase() === word) return item;
+  }
+  return null;
 }
 
 /**
@@ -1118,8 +1165,10 @@ async function refreshSuggestions() {
  * Input: the keydown event of the company textbox.
  * Output: none (it may preventDefault).
  * Action: the arrow keys open the dropdown or move its cursor, Enter takes the highlighted
- *         row and otherwise follows "View company" (so one Enter still opens a page), and
- *         Escape or Tab close the list — Tab still moves focus on.
+ *         row and otherwise follows "View company" (so one Enter still opens a page) —
+ *         unless that button is grayed out because the box names no company, in which case
+ *         Enter leaves the list open and does nothing — and Escape or Tab close the list,
+ *         Tab still moving focus on.
  * Role: makes the dropdown usable without a mouse, and keeps it from eating keystrokes the
  *       textbox needs.
  */
@@ -1145,7 +1194,7 @@ function handleSuggestKeydown(event) {
     }
 
     const link = document.getElementById('view-company');
-    if (link) {
+    if (link && link.getAttribute('aria-disabled') !== 'true') {
       event.preventDefault();
       closeSuggestions();
       link.click();
@@ -1241,37 +1290,73 @@ async function signOut() {
 }
 
 /**
- * Input: none (reads the #company-input textbox and the kind a picked suggestion left in
- *        its data-kind attribute).
+ * Input: none (reads the #company-input textbox, the kind a picked suggestion left in its
+ *        data-kind attribute, and suggestionList once the two lists have arrived).
  * Output: none.
- * Action: points the #view-company link at viewcompany.html, carrying the box's value as
- *         ?name=… when it came from the names list or ?symbol=… otherwise (typing over a
- *         pick clears the remembered kind, so plain text is always read as a symbol) — or
- *         at the bare page, which opens the company picker, when the box is empty.
- * Role: gives "View company" a real href, so a click, a middle-click and the keyboard all
- *       go to the drill-down page, and the target follows both the typing and the pick.
+ * Action: points the #view-company link at viewcompany.html, carrying the company as
+ *         ?name=… or ?symbol=… — with the list's own spelling and kind when the box holds a
+ *         listed value (data-kind covers a pick made before the lists arrived), and plain
+ *         text as a symbol otherwise — or at the bare page, which opens the company picker,
+ *         when the box is empty. While the box holds text that is in neither list, the
+ *         button is grayed out: aria-disabled, out of the tab order (tabindex="-1"), a
+ *         not-allowed cursor and a tooltip that says why. Empty box, a listed value, or a
+ *         list that could not be read all keep it amber — a failed read never blocks the
+ *         page, and the drill-down has a picker of its own as a backstop.
+ * Role: gives "View company" a real href *and* a real state, so a click, a middle-click and
+ *       the keyboard all agree with what the box currently says.
  */
 function syncViewLink() {
   const input = document.getElementById('company-input');
   const link = document.getElementById('view-company');
   if (!input || !link) return;
 
-  const name = input.value.trim();
-  const query = input.dataset.kind === 'name' ? '?name=' : '?symbol=';
-  link.href = name ? 'viewcompany.html' + query + encodeURIComponent(name) : 'viewcompany.html';
+  const text = input.value.trim();
+  const match = findSuggestion(suggestionList, text);
+  const kind = match ? match.kind : (input.dataset.kind === 'name' ? 'name' : 'symbol');
+  const value = match ? match.value : text;
+  const query = text ? (kind === 'name' ? '?name=' : '?symbol=') + encodeURIComponent(value) : '';
+  link.href = 'viewcompany.html' + query;
+
+  const usable = !text || Boolean(match) || !suggestionList;
+  link.classList.toggle('is-disabled', !usable);
+  if (usable) {
+    link.removeAttribute('aria-disabled');
+    link.removeAttribute('tabindex');
+    link.removeAttribute('title');
+  } else {
+    link.setAttribute('aria-disabled', 'true');
+    link.setAttribute('tabindex', '-1');
+    link.title = '"' + text + '" is not a company name or symbol on file — pick one from the list';
+  }
+}
+
+/**
+ * Input: the click event of the #view-company link.
+ * Output: none (it may preventDefault).
+ * Action: swallows the click while the link carries aria-disabled — the state syncViewLink()
+ *         sets when the box names no company — so a mouse click, a middle-click and the
+ *         Enter path all stop there instead of opening a page for a company that is not on
+ *         file. An enabled button is left alone.
+ * Role: what makes the grayed-out state mean something; an <a> has no disabled attribute of
+ *       its own, so the guard is the behaviour.
+ */
+function handleViewClick(event) {
+  if (event.currentTarget.getAttribute('aria-disabled') === 'true') event.preventDefault();
 }
 
 /**
  * Input: none (the script sits at the end of <body>, so the DOM already exists).
  * Output: none.
- * Action: starts the username and table reads in parallel, keeps the "View company" link in
- *         step with the textbox, fills the suggestion dropdown when the box is focused or
- *         typed into, and wires the sign-out button to signOut().
+ * Action: starts the username and table reads in parallel, reads the two suggestion lists up
+ *         front (the "View company" state depends on them), keeps that link in step with the
+ *         textbox, fills the suggestion dropdown when the box is focused or typed into, wires
+ *         the link's click guard and the sign-out button to signOut().
  * Role: single entry point for the page.
  */
 function init() {
   loadUser();
   loadCompanies();
+  loadSuggestions();
   syncViewLink();
 
   const input = document.getElementById('company-input');
@@ -1285,6 +1370,9 @@ function init() {
     input.addEventListener('blur', closeSuggestions);
     input.addEventListener('keydown', handleSuggestKeydown);
   }
+
+  const viewLink = document.getElementById('view-company');
+  if (viewLink) viewLink.addEventListener('click', handleViewClick);
 
   const signOutButton = document.getElementById('signout-button');
   if (signOutButton) signOutButton.addEventListener('click', signOut);
