@@ -440,7 +440,7 @@
       id="company-input"
       name="company"
       type="text"
-      placeholder="Company name"
+      placeholder="Company symbol/ticker"
       autocomplete="off"
       spellcheck="false">
     <a class="btn btn-amber" id="view-company" href="viewcompany.html">View company</a>
@@ -869,7 +869,7 @@ function syncViewLink() {
   if (!input || !link) return;
 
   const name = input.value.trim();
-  link.href = name ? 'viewcompany.html?name=' + encodeURIComponent(name) : 'viewcompany.html';
+  link.href = name ? 'viewcompany.html?symbol=' + encodeURIComponent(name) : 'viewcompany.html';
 }
 
 /**
