@@ -889,7 +889,6 @@ async function fetchJson(path) {
       headers: { Accept: 'application/json' },
       cache: 'no-store',
       credentials: 'include',
-      signal: controller.signal
     });
     
     if (!response.ok) {
