@@ -1271,6 +1271,7 @@ async function openBySymbol(symbol) {
     const record = await fetchJson(ENDPOINTS.company(symbol));
     if (!record) {
       await openPicker('No company called \u201c' + symbol + '\u201d is on file. Pick one:');
+      console.log("no record")
       return;
     }
 
