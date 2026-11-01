@@ -788,28 +788,6 @@ function toHistory(record, field) {
   return [];
 }
 
-/**
- * Input: the body of GET /companies/{symbol}.
- * Output: the company record object, or null when the answer holds none.
- * Action: unwraps {company: ...} / {data: ...} / {result: ...} envelopes and
- *         accepts a bare record (anything carrying a symbol or a company name).
- * Role: keeps the page working whether the API answers with the row or wraps it.
- */
-function toRecord(payload) {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
-
-  for (const key of ['company', 'data', 'result', 'record']) {
-    const nested = payload[key];
-    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
-      const unwrapped = toRecord(nested);
-      if (unwrapped) return unwrapped;
-    }
-  }
-
-  return payload.symbol || payload.ticker || payload.company_name || payload.companyName
-    ? payload
-    : null;
-}
 
 /**
  * Input: the body of GET /companies.
@@ -1290,7 +1268,7 @@ async function openBySymbol(symbol) {
   setNote('Reading ' + symbol + '\u2026');
 
   try {
-    const record = toRecord(await fetchJson(ENDPOINTS.company(symbol)));
+    const record = await fetchJson(ENDPOINTS.company(symbol));
     if (!record) {
       await openPicker('No company called \u201c' + symbol + '\u201d is on file. Pick one:');
       return;
