@@ -914,12 +914,15 @@ async function fetchJson(path) {
       credentials: 'include',
       signal: controller.signal
     });
+    
     if (!response.ok) {
       const error = new Error('HTTP ' + response.status);
       error.status = response.status;
       throw error;
     }
-    return await response.json();
+    record_json = await response.json()
+    console.log(`debug function fetchJson, fetched json object format: ${record_json}`)
+    return ;
   } finally {
     clearTimeout(timer);
   }
