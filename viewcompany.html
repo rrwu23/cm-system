@@ -602,6 +602,7 @@ const TILES = [
  * Role: lets one tile or column read snake_case and camelCase payloads alike.
  */
 function pick(record, keys, type) {
+  console.log(`debug check if record variable is in wanted format: ${record}`)
   if (!record || typeof record !== 'object') return undefined;
   for (const key of keys) {
     if (type="numerical_value"){
@@ -996,7 +997,7 @@ function renderTiles(record) {
     const node = document.getElementById(tile.id);
     if (!node) continue;
 
-    const raw = pick(record, tile.keys);
+    const raw = pick(record, tile.keys, "numerical value");
     let text;
     if (tile.kind === 'score') text = formatScore(raw);
     else if (tile.kind === 'money') text = formatMoney(raw);
