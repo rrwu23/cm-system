@@ -1311,7 +1311,7 @@ async function openByName(query) {
   try {
     const list = toList(await fetchJson(ENDPOINTS.companies));
     const match = findCompany(list, query);
-    const symbol = match ? asText(pick(match, ['symbol', 'ticker', 'code'])) : EMPTY;
+    const symbol = match ? asText(pick(match, ['symbol', 'ticker', 'code'], "other")) : EMPTY;
 
     if (match && symbol !== EMPTY) {
       await openBySymbol(symbol);
