@@ -921,7 +921,7 @@ async function fetchJson(path) {
       throw error;
     }
     record_json = await response.json()
-    console.log(`debug function fetchJson, fetched json object format: ${record_json}`)
+    console.log(`debug function fetchJson, fetched json object format: ${JSON.stringify(record_json)}`)
     return ;
   } finally {
     clearTimeout(timer);
