@@ -543,9 +543,10 @@
 
   <!-- Yellow textbox + matching "View company" link. The href is kept in step with
        what the box holds (viewcompany.html?symbol=… / ?name=…), so an empty box opens
-       the picker. Focusing the box drops down the names and symbols that start with
-       what is typed — the two lists behind it are /all-names and /all-symbols — and the
-       button grays out (aria-disabled, is-disabled) while the box names neither. -->
+       the picker. Typing opens a list of the names and symbols that start with the text
+       — the two lists behind it are /all-names and /all-symbols, and clicking the box
+       alone opens nothing — and the button grays out (aria-disabled, is-disabled) while
+       the box names neither. -->
   <section class="picker" aria-label="Choose a company">
     <div class="company-field">
       <label class="sr-only" for="company-input">Company name</label>
@@ -634,9 +635,9 @@
  * {count, companies: [...]} without a session, and each row is the same record
  * viewcompany.html reads.
  * The typeahead under the textbox is built from /all-names and /all-symbols: both are
- * plain arrays of strings, both are read once (on the first focus of the box) and then
- * filtered locally by prefix, so typing never costs a request. A list that fails is
- * simply empty — the box keeps working as a plain text field.
+ * plain arrays of strings, both are read once (at page load, or on the first keystroke if
+ * that read came back empty) and then filtered locally by prefix, so typing never costs a
+ * request. A list that fails is simply empty — the box keeps working as a plain text field.
  * The session is the HttpOnly session_id cookie the API set at sign-in: those
  * requests carry it only with credentials: 'include', because the page and the
  * API are different hosts (www vs api.kidsfunbank.ca).
@@ -1028,7 +1029,7 @@ function toStrings(payload) {
  * Output: a promise of [{ value, kind }] — names first, then symbols, one entry per value.
  * Action: reads /all-names and /all-symbols on the first call and caches the merged
  *         result; a list that fails counts as empty, and an empty merge is not cached, so
- *         a later focus asks again. A merge that did bring rows is also remembered in
+ *         a later keystroke asks again. A merge that did bring rows is also remembered in
  *         suggestionList for the "View company" guard, which is re-settled right away
  *         because the box may already hold text.
  * Role: the page's only read of the two lists — everything after it is local filtering.
@@ -1063,7 +1064,7 @@ function loadSuggestions() {
  * Input: the merged suggestion list and the text in the box.
  * Output: at most SUGGEST_LIMIT entries whose value starts with that text.
  * Action: case-insensitive prefix match on the trimmed text; an empty box keeps the first
- *         SUGGEST_LIMIT entries, so focusing alone already shows both lists.
+ *         SUGGEST_LIMIT entries, which is what ArrowDown alone still draws.
  * Role: the "matching initial values" rule, kept pure so a probe can call it directly.
  */
 function filterSuggestions(items, text) {
@@ -1229,7 +1230,8 @@ function chooseSuggestion(item) {
  * Action: loads the two lists (first call only), keeps the rows that start with the typed
  *         text and draws them. Does nothing when the box has already lost focus — the case
  *         when the lists arrive after the visitor has clicked away.
- * Role: the one place the dropdown is (re)filled — wired to focus and to every keystroke.
+ * Role: the one place the dropdown is (re)filled — wired to every keystroke, and to
+ *       ArrowDown when the list is closed (a click into the box opens nothing on its own).
  */
 async function refreshSuggestions() {
   const input = document.getElementById('company-input');
@@ -1437,9 +1439,9 @@ function handleViewClick(event) {
  * Output: none.
  * Action: starts the username and table reads in parallel, reads the two suggestion lists up
  *         front (the "View company" state depends on them), keeps that link in step with the
- *         textbox, fills the suggestion dropdown when the box is focused or typed into, wires
- *         the link's click guard, the table body's row click (a row opens its company's file)
- *         and the sign-out button to signOut().
+ *         textbox, fills the suggestion dropdown on the first keystroke (or on ArrowDown),
+ *         wires the link's click guard, the table body's row click (a row opens its
+ *         company's file) and the sign-out button to signOut().
  * Role: single entry point for the page.
  */
 function init() {
@@ -1455,7 +1457,9 @@ function init() {
       syncViewLink();
       refreshSuggestions();
     });
-    input.addEventListener('focus', refreshSuggestions);
+    // No 'focus' listener on purpose: clicking the box only puts the caret in it. The
+    // dropdown opens on the first keystroke (and on ArrowDown, which asks for it by name),
+    // so a visitor who only wants to paste or read the field is not covered by a panel.
     input.addEventListener('blur', closeSuggestions);
     input.addEventListener('keydown', handleSuggestKeydown);
   }
