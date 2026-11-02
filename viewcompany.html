@@ -195,9 +195,10 @@
     font-weight: 700;
   }
 
-  /* ---------- Seven tiles: scores, symbol, price, both W/L ratios ----------
-     A 4-column grid, so the four scores sit on the first row and the three
-     price lines on the second, exactly like the paper sketch. */
+  /* ---------- Eight tiles: four scores, symbol, price, both W/L ratios ----------
+     A 4-column grid, so the four scores (moat / cyclical / growth / antifragile)
+     sit on the first row and the symbol + the three price lines on the second,
+     exactly like the paper sketch. */
   .tiles {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -456,7 +457,7 @@
     <p class="company-note" id="company-note" role="status" aria-live="polite">Reading the company file&hellip;</p>
   </section>
 
-  <!-- Seven tiles: four scores on the first row, symbol + price + both W/L ratios
+  <!-- Eight tiles: four scores on the first row, symbol + price + both W/L ratios
        on the second. Values are written by renderTiles(). -->
   <section class="tiles" aria-label="Latest scores and prices">
     <div class="tile">
@@ -466,6 +467,10 @@
     <div class="tile">
       <span class="tile-label">Cyclical score</span>
       <span class="tile-value" id="tile-cyclical" data-state="loading">&hellip;</span>
+    </div>
+    <div class="tile">
+      <span class="tile-label">Growth score</span>
+      <span class="tile-value" id="tile-growth" data-state="loading">&hellip;</span>
     </div>
     <div class="tile">
       <span class="tile-label">Antifragile score</span>
@@ -592,7 +597,8 @@ const SECTIONS = [
 ];
 
 /**
- * The seven tiles, in render order (four on the first row, three on the second).
+ * The eight tiles, in render order (the four scores on the first row, symbol +
+ * price + both W/L ratios on the second).
  * "keys" lists accepted payload spellings so a snake_case or camelCase record
  * both lands in the right box, and "kind" picks the formatter: score = whole
  * marks, money = two decimals, ratio = two decimals, text = as stored.
@@ -600,6 +606,7 @@ const SECTIONS = [
 const TILES = [
   { id: 'tile-moat', label: 'Moat score', keys: ['moat_score', 'moat', 'moatScore'], kind: 'score' },
   { id: 'tile-cyclical', label: 'Cyclical score', keys: ['cyclical_score', 'cyclical', 'cyclicalScore'], kind: 'score' },
+  { id: 'tile-growth', label: 'Growth score', keys: ['growth_score', 'growth', 'growthScore'], kind: 'score' },
   { id: 'tile-anti-fragile', label: 'Antifragile score', keys: ['anti_fragile_score', 'antifragile_score', 'antiFragileScore'], kind: 'score' },
   { id: 'tile-symbol', label: 'Symbol', keys: ['symbol', 'ticker', 'code'], kind: 'text' },
   { id: 'tile-price', label: 'Current price', keys: ['current_price', 'currentPrice', 'price'], kind: 'money' },
@@ -678,7 +685,7 @@ function toNumber(value) {
  * Input: a score as stored (usually an integer 0-100).
  * Output: the score as text ("96"), or the em-dash placeholder.
  * Action: keeps whole marks whole and shows at most one decimal otherwise.
- * Role: renders the three score tiles.
+ * Role: renders the four score tiles (moat / cyclical / growth / antifragile).
  */
 function formatScore(value) {
   const number = toNumber(value);
@@ -1065,8 +1072,8 @@ function setName(text, state) {
  * Output: none.
  * Action: fills each tile in TILES from the record, formats its value by kind,
  *         and marks the tile empty when the field is missing.
- * Role: the seven boxes - moat / cyclical / antifragile score, symbol, price and
- *       both W/L ratios - i.e. the latest stored figures for this company.
+ * Role: the eight boxes - moat / cyclical / growth / antifragile score, symbol,
+ *       price and both W/L ratios - i.e. the latest stored figures for this company.
  */
 function renderTiles(record) {
   for (const tile of TILES) {
@@ -1247,7 +1254,7 @@ function renderReports(record) {
 /**
  * Input: one company record.
  * Output: none.
- * Action: names the page after the company, writes the note, the seven tiles and
+ * Action: names the page after the company, writes the note, the eight tiles and
  *         the thirteen report tables, hides the picker and retitles the tab.
  * Role: the single draw for a loaded company.
  */
@@ -1268,7 +1275,7 @@ function renderRecord(record) {
 /**
  * Input: the sentence to show under the heading.
  * Output: none.
- * Action: resets the heading, the seven tiles and the report area to their
+ * Action: resets the heading, the eight tiles and the report area to their
  *         placeholders and writes the sentence into the note.
  * Role: the state behind "no company asked for yet", "no such company" and a
  *       failed read - the page never shows a half-filled file.
