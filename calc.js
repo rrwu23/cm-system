@@ -6,7 +6,8 @@
  * Output: the ready/error state of every upload card, a console log of the full payload
  *         after each edit, and a POST to /addcompany when Submit is pressed.
  * Action: reads the form, checks each attached file is HTML, keeps the four /100 scores as
- *         whole marks (0..100, nudged one point at a time by the ▲/▼ buttons), checks the
+ *         whole marks (0..100, nudged one point at a time by the ▲/▼ buttons), keeps the
+ *         winning probability as a percentage (0..100 with up to one decimal), checks the
  *         rank is a letter from A to F, prints the result, then posts every filled-in
  *         control to /addcompany as multipart/form-data, keyed by the sheet's own `name`
  *         attributes.
@@ -62,9 +63,24 @@
   // Rank is a letter grade the user picks from the Rank list, never a number.
   const GRADES = ['A', 'B', 'C', 'D', 'E', 'F'];
 
+  // The odd one out in the Scores card: a percentage, not a mark out of 100. It keeps up to
+  // one decimal (62.5 %) and has no ▲ / ▼ buttons — a measured probability is typed, not
+  // nudged — so it is normalised by normalizePercent() and its own limits.
+  const PERCENT_FIELDS = [
+    { field: 'winning_probability', key: 'winningProbability', label: 'Winning probability' }
+  ];
+  const MIN_PERCENT = 0;
+  const MAX_PERCENT = 100;
+  // One decimal is as fine as a probability needs; a third decimal is rounded away rather
+  // than left in the box, where step="0.1" would block Submit.
+  const PERCENT_DECIMALS = 1;
+
   const MAX_SCORE = 100;
   const MIN_SCORE = 0;
   const SCORE_STEP = 1;
+  // The clause the footer adds after naming a box it corrected, one per family of boxes.
+  const SCORE_TAIL = 'scores are whole marks from 0 to 100';
+  const PERCENT_TAIL = 'a probability runs from 0 to 100 percent';
   // The API's own limits: CompanyIn declares symbol as 1–32 characters and company_name
   // as up to 300. A longer value cannot be "fixed later" on the server — it answers 422 —
   // so the payload is cut to the length the model accepts before it is appended.
@@ -107,6 +123,22 @@
     const number = toNumber(value);
     if (number === null) return null;
     return Math.min(MAX_SCORE, Math.max(MIN_SCORE, Math.round(number)));
+  }
+
+  /**
+   * Input: a raw percentage — a number, a numeric string, or null.
+   * Output: a number inside 0..100 with at most one decimal, or null when there is no number.
+   * Action: converts with toNumber(), rounds to one decimal place, then clamps both ends.
+   * Role: the winning probability's rule — 62.5 stays 62.5, 62.55 becomes 62.6, 140 becomes
+   *       100 and -5 becomes 0, so the box never holds a value step="0.1" would reject.
+   */
+  function normalizePercent(value) {
+    const number = toNumber(value);
+    if (number === null) return null;
+
+    const factor = Math.pow(10, PERCENT_DECIMALS);
+    const rounded = Math.round(number * factor) / factor;
+    return Math.min(MAX_PERCENT, Math.max(MIN_PERCENT, rounded));
   }
 
   /**
@@ -202,6 +234,7 @@
       cyclicalScore: toNumber(text('cyclical_score')),
       antifragileScore: toNumber(text('anti_fragile_score')),
       growthScore: toNumber(text('growth_score')),
+      winningProbability: toNumber(text('winning_probability')),
       rank: text('rank'),
       goodPrice: toNumber(text('good_price')),
       targetPrice: toNumber(text('target_price')),
@@ -226,10 +259,12 @@
   /**
    * Input: the values object from readForm().
    * Output: { companyName, symbol, moatScore, cyclicalScore, antifragileScore,
-   *           growthScore, goodPrice, targetPrice, badPrice, rank, uploads, uploadsValid }.
-   * Action: rounds and clamps the four scores to whole 0..100 marks, keeps the rank only
-   *         when it is a real A–F grade, keeps the three prices as typed, and flags any
-   *         upload that is not HTML.
+   *           growthScore, winningProbability, goodPrice, targetPrice, badPrice, rank,
+   *           uploads, uploadsValid }.
+   * Action: rounds and clamps the four scores to whole 0..100 marks, keeps the winning
+   *         probability as a 0..100 percentage (one decimal), keeps the rank only when it is
+   *         a real A–F grade, keeps the three prices as typed, and flags any upload that is
+   *         not HTML.
    * Role: the payload the dashboard needs; this is the object that gets logged.
    */
   function calculateScores(values) {
@@ -242,6 +277,7 @@
       cyclicalScore: normalizeScore(values.cyclicalScore),
       antifragileScore: normalizeScore(values.antifragileScore),
       growthScore: normalizeScore(values.growthScore),
+      winningProbability: normalizePercent(values.winningProbability),
       goodPrice: toNumber(values.goodPrice),
       targetPrice: toNumber(values.targetPrice),
       badPrice: toNumber(values.badPrice),
@@ -267,18 +303,22 @@
   /**
    * Input: the <form> element and the scores object from calculateScores().
    * Output: a FormData whose keys are the sheet's own `name` attributes, in sheet order.
-   * Action: appends the identity, the four clamped scores, rank and the three prices the
-   *         sheet has, then every attached .html report; anything left blank is skipped. The
-   *         files are read back from the form itself, so the browser keeps their real name and
-   *         MIME type.
+   * Action: appends the identity, the four clamped scores, the winning probability in
+   *         percent, rank and the three prices the sheet has, then every attached .html
+   *         report; anything left blank is skipped. The files are read back from the form
+   *         itself, so the browser keeps their real name and MIME type.
    * Role: the exact request body Submit posts to /addcompany — no renaming layer, so a
    *       backend field is found by reading the `name` attributes of addcompany.html.
-   *       Every key here is a field of the API's CompanyUploadIn model, and nothing else:
+   *       Every key here except `winning_probability` is a field of the API's CompanyUploadIn
+   *       model, and nothing else is added:
    *       anti_fragile_score, anti_fragile_analysis and industry_map are spelled the way the
    *       model spells them, so a section is never dropped. There is no `date` part (the
    *       model types `date` as None and the row is dated server-side), and no
    *       `current_price` part either — CompanyUploadIn has no such field. The model's prices
    *       are good_price, target_price and bad_price, and the sheet now enters all three.
+   *       `winning_probability` is the one part the live model does not declare yet: the
+   *       sheet sends it under the name the column should take, so the day the API grows
+   *       that field the value is already in the body (see PENDING_FIELDS in the harness).
    */
   function buildSubmission(form, scores) {
     const body = new FormData();
@@ -294,6 +334,7 @@
     add('cyclical_score', scores.cyclicalScore);
     add('anti_fragile_score', scores.antifragileScore);
     add('growth_score', scores.growthScore);
+    add('winning_probability', scores.winningProbability);
     add('rank', scores.rank);
     // The model's three prices, each part posted only when its box was filled (add() skips
     // blanks): good_price / target_price / bad_price. There is no current_price part —
@@ -406,51 +447,104 @@
   }
 
   /**
+   * Input: a score entry from SCORE_FIELDS.
+   * Output: the spec rewriteBox() needs — the whole-mark normaliser, 0..100, and the clause
+   *         the footer adds when it had to correct a score.
+   * Action: pairs a field with its rule; nothing is read or written here.
+   * Role: keeps the two families of number boxes on one rewriting path without repeating the
+   *       same four keys at every call site.
+   */
+  function scoreSpec(entry) {
+    return {
+      field: entry.field,
+      label: entry.label,
+      normalize: normalizeScore,
+      min: MIN_SCORE,
+      max: MAX_SCORE,
+      tail: SCORE_TAIL
+    };
+  }
+
+  /**
+   * Input: a percentage entry from PERCENT_FIELDS.
+   * Output: the spec rewriteBox() needs — the one-decimal normaliser, 0..100, and the
+   *         percentage clause.
+   * Action: pairs the winning-probability box with its rule; nothing is read or written here.
+   * Role: the percentage rides the same correction path as the scores, so a clamp is named in
+   *       the footer and held for one submit exactly like a rounded mark.
+   */
+  function percentSpec(entry) {
+    return {
+      field: entry.field,
+      label: entry.label,
+      normalize: normalizePercent,
+      min: MIN_PERCENT,
+      max: MAX_PERCENT,
+      tail: PERCENT_TAIL
+    };
+  }
+
+  /**
+   * Input: the <form> element and one spec ({ field, label, normalize, min, max, tail }).
+   * Output: a correction { input, field, label, from, to, kind, tail }, or null when the box
+   *         was empty or already held a value the sheet can store.
+   * Action: applies spec.normalize to the typed text, writes the result back when it differs
+   *         (an empty string when the text is not a number), and classifies the change.
+   * Role: the one place a typed number is rewritten on screen — shared by the four scores and
+   *       the percentage, so no box is corrected silently or by a second code path.
+   */
+  function rewriteBox(form, spec) {
+    const input = findControl(form, spec.field);
+    if (!input || input.value === '') return null;
+
+    const from = String(input.value).trim();
+    const value = spec.normalize(from);
+    const next = value === null ? '' : String(value);
+    if (next === from) return null;
+
+    input.value = next;
+    const number = toNumber(from);
+    return {
+      input: input,
+      field: spec.field,
+      label: spec.label,
+      from: from,
+      to: value,
+      tail: spec.tail,
+      kind: value === null
+        ? 'cleared'
+        : (number < spec.min || number > spec.max ? 'clamped' : 'rounded')
+    };
+  }
+
+  /**
    * Input: the <form> element.
-   * Output: an array of corrections — one { input, field, label, from, to, kind } per score box
-   *         this call had to rewrite. `kind` is 'clamped' (outside 0..100), 'rounded' (a
-   *         decimal such as 55.5) or 'cleared' (no number at all); `to` is null when cleared.
-   *         Boxes that were already a whole mark inside the range are left alone and not listed.
-   * Action: rewrites each score box as a whole mark inside 0..100 (55.5 → 56, 844 → 100) and
-   *         empties a box that holds no number at all, then reports what it changed.
-   * Role: keeps the number boxes integral, so the browser's step="1" check never blocks Submit
-   *       over a stray decimal — and since this function edits what the analyst typed, it also
-   *       names every box it touched so the page can point at it instead of editing silently.
+   * Output: an array of corrections — the four score boxes first, then the winning
+   *         probability, one { input, field, label, from, to, kind, tail } per box this call
+   *         had to rewrite. `kind` is 'clamped' (outside the box's range), 'rounded' (a value
+   *         with more precision than the sheet keeps, such as 55.5 or 62.55) or 'cleared' (no
+   *         number at all); `to` is null when cleared. Boxes that were already storable are
+   *         left alone and not listed.
+   * Action: rewrites each number box as a whole mark (55.5 → 56, 844 → 100) or as a one-decimal
+   *         percentage (62.55 → 62.6, 140 → 100) and empties a box that holds no number at all,
+   *         then reports what it changed.
+   * Role: keeps the number boxes inside what the sheet can store, so the browser's step check
+   *       never blocks Submit over a stray decimal — and since this function edits what the
+   *       analyst typed, it also names every box it touched so the page can point at it instead
+   *       of editing silently.
    */
   function normalizeScoreInputs(form) {
-    const corrections = [];
-
-    SCORE_FIELDS.forEach(function (entry) {
-      const input = findControl(form, entry.field);
-      if (!input || input.value === '') return;
-
-      const from = String(input.value).trim();
-      const value = normalizeScore(from);
-      const next = value === null ? '' : String(value);
-      if (next === from) return;
-
-      input.value = next;
-      corrections.push({
-        input: input,
-        field: entry.field,
-        label: entry.label,
-        from: from,
-        to: value,
-        kind: value === null
-          ? 'cleared'
-          : (toNumber(from) < MIN_SCORE || toNumber(from) > MAX_SCORE ? 'clamped' : 'rounded')
-      });
-    });
-
-    return corrections;
+    const specs = SCORE_FIELDS.map(scoreSpec).concat(PERCENT_FIELDS.map(percentSpec));
+    return specs.map((spec) => rewriteBox(form, spec)).filter(Boolean);
   }
 
   /**
    * Input: the corrections array from normalizeScoreInputs().
    * Output: one sentence naming the box (or boxes) and what each one became.
-   * Action: phrases 'clamped', 'rounded' and 'cleared' corrections in the sheet's own words.
-   * Role: gives the sticky footer something to say whenever a score was rewritten, so an
-   *       auto-corrected 844 is never a silent edit.
+   * Action: phrases 'clamped', 'rounded' and 'cleared' corrections in the sheet's own words,
+   *         then adds each family's rule clause once (scores / percentage).
+   * Role: gives the sticky footer something to say whenever a number box was rewritten, so an
+   *       auto-corrected 844 or 140 is never a silent edit.
    */
   function correctionMessage(corrections) {
     const what = function (correction) {
@@ -463,7 +557,12 @@
       return correction.label + ' ' + what(correction);
     });
 
-    return said.join('; ') + ' — scores are whole marks from 0 to 100.';
+    const tails = [];
+    corrections.forEach(function (correction) {
+      if (tails.indexOf(correction.tail) === -1) tails.push(correction.tail);
+    });
+
+    return said.join('; ') + ' — ' + tails.join('; ') + '.';
   }
 
   /**
@@ -562,6 +661,7 @@
       cyclicalScore: scores.cyclicalScore,
       antifragileScore: scores.antifragileScore,
       growthScore: scores.growthScore,
+      winningProbability: scores.winningProbability,
       goodPrice: scores.goodPrice,
       targetPrice: scores.targetPrice,
       badPrice: scores.badPrice,
@@ -819,6 +919,7 @@
       submitForm: submitForm,
       stepScore: stepScore,
       normalizeScore: normalizeScore,
+      normalizePercent: normalizePercent,
       normalizeGrade: normalizeGrade,
       normalizeScoreInputs: normalizeScoreInputs,
       describeUpload: describeUpload,

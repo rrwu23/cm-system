@@ -732,7 +732,7 @@
     <section class="card" aria-labelledby="scores-title">
       <div class="card-head">
         <h2 class="card-title" id="scores-title">Scores</h2>
-        <p class="card-note">Whole marks out of 100 &mdash; &#9650; / &#9660; move a score by one. Rank is A&ndash;F.</p>
+        <p class="card-note">Whole marks out of 100 &mdash; &#9650; / &#9660; move a score by one. Winning probability is a percentage, typed by hand. Rank is A&ndash;F.</p>
       </div>
       <div class="grid grid-4">
         <!-- The ▲ / ▼ buttons sit outside the <label> on purpose: WebKit drops a click on a
@@ -809,6 +809,21 @@
                       aria-controls="score-growth_score" aria-label="Decrease growth score by 1">&#9660;</button>
             </span>
           </span>
+        </div>
+        <!-- A percentage, not a mark: the box takes decimals (62.5) and has no ▲ / ▼ pair,
+             because a probability is a measured number rather than a grade to nudge. Its
+             `%` suffix is the same .control/.suffix treatment the score boxes use. -->
+        <div class="field">
+          <label class="field-label" id="label-winning_probability" for="winning_probability">
+            Winning probability <span class="note">percentage</span>
+          </label>
+          <span class="control">
+            <input id="winning_probability" type="number" name="winning_probability"
+                   min="0" max="100" step="0.1" inputmode="decimal"
+                   aria-describedby="hint-winning_probability">
+            <span class="suffix" aria-hidden="true">%</span>
+          </span>
+          <span class="field-hint" id="hint-winning_probability">A percentage from 0 to 100.</span>
         </div>
         <label class="field">
           <span class="field-label">Rank <span class="note">A&ndash;F</span></span>
@@ -1007,7 +1022,7 @@
      browser from pairing this markup with a stale cached script (the host sends
      max-age=14400), which would leave the ▲ / ▼ buttons with no click listener. Bump it
      whenever calc.js changes. -->
-<script src="calc.js?v=20261031.1" defer></script>
+<script src="calc.js?v=20261101.1" defer></script>
 </body>
 </html>
 
