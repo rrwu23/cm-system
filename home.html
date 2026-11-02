@@ -445,6 +445,29 @@
   .cell-num { font-variant-numeric: tabular-nums; }
   .cell-empty { color: var(--ink-faint); }
 
+  /* A row is a door to that company's file. The anchor in the name cell carries the href —
+     so the tab order, a middle-click and the accessible name all work — and the row's own
+     click handler (handleRowClick) follows the same href, so the whole line is clickable
+     without thirteen links in it. A record with no symbol leaves its row plain text. */
+  .data-table tbody tr.row-linked { cursor: pointer; }
+
+  .cell-link {
+    color: inherit;
+    font: inherit;
+    text-decoration: none;
+  }
+
+  .data-table tbody tr.row-linked:hover .cell-link {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .cell-link:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
   .rank-pill {
     display: inline-flex;
     justify-content: center;
@@ -557,6 +580,9 @@
     <a class="btn btn-soft" href="#">Portfolio analytics</a>
   </nav>
 
+  <!-- The analysis table. Every row opens that company's file (viewcompany.html?symbol=…) —
+       the name cell carries the link, and handleRowClick() follows it for a click anywhere
+       else on the line; a record with no symbol stays plain text. -->
   <section class="panel" aria-labelledby="companies-title">
     <div class="panel-head">
       <h1 class="panel-title" id="companies-title">Company analysis</h1>
@@ -570,7 +596,7 @@
       <table class="data-table">
         <caption class="sr-only">
           Companies with symbol, moat, cyclical, antifragile score, WL ratio base,
-          WL ratio optimistic and rank.
+          WL ratio optimistic and rank. Every row opens that company's file.
         </caption>
         <thead>
           <tr>
@@ -633,14 +659,24 @@ const SUGGEST_LIMIT = 8;
 const SIGNED_OUT_PAGE = 'login.html';
 
 /**
+ * The drill-down a company row — and "View company" — points at, keyed by `?symbol=…`
+ * (the spelling is relative, so the link follows whatever host serves the dashboard).
+ */
+const VIEW_PAGE = 'viewcompany.html';
+
+/** The spellings a company's symbol may arrive under — shared by the column and the row link. */
+const SYMBOL_KEYS = ['symbol', 'ticker', 'code'];
+
+/**
  * Column map for the analysis table, in render order. The static <thead> in the
  * markup follows the same order — update both together if a column changes.
  * "keys" lists accepted payload spellings so snake_case or camelCase responses
- * both land in the right column.
+ * both land in the right column. "link" marks the one column whose text becomes
+ * the row's link to the company file (see rowHref()); "pill" draws a rank pill.
  */
 const COLUMNS = [
-  { keys: ['company_name', 'companyName', 'name', 'company'], cellClass: 'cell-company' },
-  { keys: ['symbol', 'ticker', 'code'], cellClass: 'cell-symbol' },
+  { keys: ['company_name', 'companyName', 'name', 'company'], cellClass: 'cell-company', link: true },
+  { keys: SYMBOL_KEYS, cellClass: 'cell-symbol' },
   { keys: ['moat', 'moat_score', 'moatScore', 'alpha'], cellClass: 'cell-num' },
   { keys: ['cyclical', 'cyclical_score', 'cyclicalScore', 'beta'], cellClass: 'cell-num' },
   { keys: ['anti_fragile_score', 'antifragileScore', 'antifragile'], cellClass: 'cell-num' },
@@ -842,11 +878,28 @@ function setHint(count) {
 }
 
 /**
+ * Input: one company record from the analysis table.
+ * Output: the URL that opens that company's file (`viewcompany.html?symbol=…`), or '' when
+ *         the record carries no symbol.
+ * Action: reads the symbol through the same spellings the symbol column accepts and
+ *         URL-encodes it.
+ * Role: the one decision behind a clickable row and the link in its name cell — a record
+ *       with no symbol leaves its row plain text instead of pointing at nothing.
+ */
+function rowHref(record) {
+  const symbol = asText(pick(record, SYMBOL_KEYS));
+  return symbol === EMPTY ? '' : VIEW_PAGE + '?symbol=' + encodeURIComponent(symbol);
+}
+
+/**
  * Input: array of company record objects.
  * Output: none.
  * Action: rebuilds tbody from COLUMNS using textContent only (no HTML injection),
- *         styles rank as a pill, and sends numbers through tabular figures.
- * Role: draws the main analysis table and refreshes the row-count hint.
+ *         styles rank as a pill, sends numbers through tabular figures, and — when the
+ *         record has a symbol — puts a link to the company's file in the name cell and marks
+ *         the row clickable (`tr.row-linked`, handled by handleRowClick()).
+ * Role: draws the main analysis table, makes every row a door to viewcompany.html?symbol=…,
+ *       and refreshes the row-count hint.
  */
 function renderTable(rows) {
   const body = document.getElementById('companies-body');
@@ -861,12 +914,21 @@ function renderTable(rows) {
   const fragment = document.createDocumentFragment();
   for (const record of rows) {
     const row = document.createElement('tr');
+    const href = rowHref(record);
+    if (href) row.className = 'row-linked';
+
     for (const column of COLUMNS) {
       const cell = document.createElement('td');
       if (column.cellClass) cell.className = column.cellClass;
 
       const text = asText(pick(record, column.keys));
-      if (column.pill && text !== EMPTY) {
+      if (column.link && href) {
+        const link = document.createElement('a');
+        link.className = 'cell-link';
+        link.href = href;
+        link.textContent = text;
+        cell.appendChild(link);
+      } else if (column.pill && text !== EMPTY) {
         const pill = document.createElement('span');
         pill.className = 'rank-pill';
         pill.textContent = text;
@@ -883,6 +945,31 @@ function renderTable(rows) {
 
   body.appendChild(fragment);
   setHint(rows.length);
+}
+
+/**
+ * Input: a click anywhere inside the analysis table body (delegated from #companies-body).
+ * Output: none (it may navigate).
+ * Action: follows the clicked row's own link, and stays out of the way when the click already
+ *         landed on that link or on a control (the browser owns those), when it came with a
+ *         modifier or another mouse button (Ctrl-click and middle-click must keep opening a
+ *         tab), and when it was the end of a drag over the row's text.
+ * Role: what makes the whole row a door to viewcompany.html?symbol=… while the anchor in the
+ *       name cell keeps the keyboard, the tab order and the accessible name.
+ */
+function handleRowClick(event) {
+  if (event.button !== 0) return;
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  if (!(event.target instanceof Element)) return;
+  if (event.target.closest('a, button')) return;
+
+  const body = document.getElementById('companies-body');
+  const selection = window.getSelection();
+  if (body && selection && !selection.isCollapsed && body.contains(selection.anchorNode)) return;
+
+  const row = event.target.closest('tr');
+  const link = row ? row.querySelector('.cell-link') : null;
+  if (link) window.location.assign(link.getAttribute('href'));
 }
 
 /* ---------- Typeahead: /all-names + /all-symbols under the company textbox ---------- */
@@ -1316,7 +1403,7 @@ function syncViewLink() {
   const kind = match ? match.kind : (input.dataset.kind === 'name' ? 'name' : 'symbol');
   const value = match ? match.value : text;
   const query = text ? (kind === 'name' ? '?name=' : '?symbol=') + encodeURIComponent(value) : '';
-  link.href = 'viewcompany.html' + query;
+  link.href = VIEW_PAGE + query;
 
   const usable = !text || Boolean(match) || !suggestionList;
   link.classList.toggle('is-disabled', !usable);
@@ -1351,7 +1438,8 @@ function handleViewClick(event) {
  * Action: starts the username and table reads in parallel, reads the two suggestion lists up
  *         front (the "View company" state depends on them), keeps that link in step with the
  *         textbox, fills the suggestion dropdown when the box is focused or typed into, wires
- *         the link's click guard and the sign-out button to signOut().
+ *         the link's click guard, the table body's row click (a row opens its company's file)
+ *         and the sign-out button to signOut().
  * Role: single entry point for the page.
  */
 function init() {
@@ -1374,6 +1462,9 @@ function init() {
 
   const viewLink = document.getElementById('view-company');
   if (viewLink) viewLink.addEventListener('click', handleViewClick);
+
+  const tableBody = document.getElementById('companies-body');
+  if (tableBody) tableBody.addEventListener('click', handleRowClick);
 
   const signOutButton = document.getElementById('signout-button');
   if (signOutButton) signOutButton.addEventListener('click', signOut);
