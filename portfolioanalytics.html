@@ -13,9 +13,12 @@
     --ink-soft: #5c6a84;
     --ink-faint: #8d99ae;
     --line: #dde4ef;
+    --amber: #ffd24a;
+    --amber-strong: #e5a900;
     --amber-soft: #fff5cc;
     --blue-ink: #21456f;
     --focus: #2f6fed;
+    --shadow-sm: 0 1px 2px rgba(23, 35, 59, .06);
     --shadow-md: 0 14px 32px -24px rgba(23, 35, 59, .55);
   }
 
@@ -46,18 +49,134 @@
     border: 0;
   }
 
+  /* The page is a column: the welcome line, the crumb back to the dashboard, then the card.
+     The column is exactly as tall as the window, so the card below is the only thing that
+     can grow — and it scrolls inside itself instead of pushing the page down. */
   .shell {
     width: min(1180px, 100% - 40px);
     margin-inline: auto;
-    /* 20px of breathing room above and below the card. The card is as tall as its rows
-       need — up to the space left in the window (see .panel) — so a short portfolio is a
-       short card and a long one scrolls inside the card. */
+    height: 100%;
+    display: flex;
+    flex-direction: column;
     padding: 20px 0;
+  }
+
+  /* ---------- Top bar: "Welcome, <user>" + page stamp + Sign out ---------- */
+  .topbar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 4px 0;
+  }
+
+  .welcome {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 20px;
+    min-width: 0;
+  }
+
+  .welcome .mark {
+    flex: none;
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    background: linear-gradient(140deg, var(--amber) 0%, var(--amber-strong) 100%);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .welcome .label { color: var(--ink-soft); font-weight: 500; }
+
+  .welcome .name {
+    font-weight: 700;
+    letter-spacing: -.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .welcome .name[data-state="offline"],
+  .welcome .name[data-state="empty"] { color: var(--ink-soft); }
+
+  /* The page stamp: the same dashed pill every screen wears, naming this one. */
+  .stamp {
+    flex: none;
+    padding: 6px 12px;
+    border: 1px dashed var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .65);
+    color: var(--ink-faint);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  .topbar-right {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Sign out: POSTs /logout so the API clears the HttpOnly session_id cookie */
+  .signout {
+    padding: 7px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease, opacity .15s ease;
+  }
+
+  .signout:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  .signout:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .signout[disabled] { opacity: .6; cursor: progress; }
+
+  /* ---------- Breadcrumb back to the dashboard ---------- */
+  .crumbs { flex: none; margin: 20px 0 16px; }
+
+  .home-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 13px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink-soft);
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-decoration: none;
+    transition: color .15s ease, border-color .15s ease;
+  }
+
+  .home-link:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  .home-link:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
 
   /* ---------- The table panel: a card whose body scrolls instead of growing ---------- */
   .panel {
-    max-height: calc(100vh - 40px);
+    /* No grow, no max-height: the card is as tall as its rows need, and shrinks (down to
+       nothing) when the rows are taller than the space the window leaves for it. */
+    flex: 0 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -103,6 +222,7 @@
   .data-table th,
   .data-table td {
     padding: 14px 18px;
+    position: relative;          /* the anchor inside stretches to this box (see .cell-fill) */
     border-bottom: 1px solid var(--line);
     border-right: 1px solid #eaeff7;
     text-align: left;
@@ -153,17 +273,32 @@
 
   .cell-name { min-width: 240px; font-weight: 600; }
 
-  .cell-name a { color: inherit; text-decoration: none; }
+  /* Every cell's one link: the company's file. The link itself is only as wide as its text,
+     but its ::after stretches to the whole cell (the <td> is the positioned ancestor), so a
+     click on the padding — or anywhere in the row — lands on that company's file. */
+  .cell-fill {
+    color: inherit;
+    text-decoration: none;
+  }
 
-  .cell-name a:hover {
+  .cell-fill::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+
+  .cell-name a.cell-fill:hover {
     text-decoration: underline;
     text-underline-offset: 3px;
   }
 
-  .cell-name a:focus-visible {
+  /* The ring belongs on the stretched box, not on the text inside it. */
+  a.cell-fill:focus-visible { outline: none; }
+
+  a.cell-fill:focus-visible::after {
     outline: 2px solid var(--focus);
-    outline-offset: 2px;
-    border-radius: 4px;
+    outline-offset: -3px;
+    border-radius: 6px;
   }
 
   .cell-symbol {
@@ -227,23 +362,44 @@
 
   @media (max-width: 560px) {
     .shell { width: 100%; padding: 12px; }
-    .panel { max-height: calc(100vh - 24px); border-radius: 14px; }
+    .panel { border-radius: 14px; }
     .data-table th, .data-table td { padding: 12px 14px; }
+    .welcome { font-size: 17px; }
+    .welcome .mark { width: 28px; height: 28px; }
+    /* The stamp is the first thing to go when the line gets tight; sign-out stays. */
+    .stamp { display: none; }
   }
 </style>
 </head>
 <body>
 <main class="shell">
 
+  <!-- Welcome line: "Welcome, <user>" — <user> is /getuser's user_name -->
+  <header class="topbar">
+    <div class="welcome">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="label">Welcome,</span>
+      <span class="name" id="username" data-state="loading">&hellip;</span>
+    </div>
+    <div class="topbar-right">
+      <span class="stamp">Portfolio analytics</span>
+      <button class="signout" id="signout-button" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <a class="home-link" href="home.html">&larr; Back to dashboard</a>
+  </nav>
+
   <!--
-    The whole page is this one table: what the desk holds (company, symbol, rank) and the
-    three prices that bracket each holding (latest / target / bad). The card is as tall as
-    its rows need, up to the height of the window; `.table-scroll` inside it owns the
-    scrolling, so a hundred holdings scroll in place instead of pushing the page's bottom
-    further and further down. The header row (and, on wide screens, the name column) stays
-    put while the body scrolls.
-    Each row's Company Name is the link to that company's file; the page itself holds no
-    other chrome — no top bar, no heading, no count — so the table is all there is to read.
+    Under that header, the page is one table: what the desk holds (company, symbol, rank) and
+    the three prices that bracket each holding (latest / target / bad). The card is as tall as
+    its rows need, up to the height the window leaves under the header; `.table-scroll` inside
+    it owns the scrolling, so a hundred holdings scroll in place instead of pushing the page's
+    bottom further and further down. The header row (and, on wide screens, the name column)
+    stays put while the body scrolls.
+    Every cell of a row — name, symbol, rank and all three prices — is the same link to that
+    company's file, so anywhere a visitor clicks in a row is the way into the company.
   -->
   <section class="panel" aria-labelledby="portfolio-title">
     <div
@@ -254,7 +410,7 @@
       <table class="data-table">
         <caption class="sr-only" id="portfolio-title">
           Portfolio analytics. Company name, company symbol, rank, latest price, target
-          price and bad price. Every company name opens that company's file.
+          price and bad price. Every cell opens that company's file.
         </caption>
         <thead>
           <tr>
@@ -378,6 +534,10 @@
  *                           "last_price": 392.2,
  *                           "target_price": 600.0,
  *                           "bad_price": 280.0 }, ... ] }
+ *   GET https://api.kidsfunbank.ca/getuser
+ *     -> { "user_name": "liangwu" }   (the welcome line; 401/403 means no session)
+ *   POST https://api.kidsfunbank.ca/logout
+ *     -> 200 on any body            (clears the HttpOnly session_id cookie)
  *   Every field is lowercase, words joined by underscores (`company_symbol`, `last_price`),
  *   and the six of them are exactly the six columns below — nothing is derived here: the
  *   rank and the three prices are shown as the API reports them.
@@ -389,7 +549,9 @@
  */
 const API_BASE = 'https://api.kidsfunbank.ca';
 const ENDPOINTS = {
-  inventory: '/get_inventory'
+  inventory: '/get_inventory',
+  user: '/getuser',
+  logout: '/logout'
 };
 const REQUEST_TIMEOUT_MS = 10000;
 const EMPTY = '\u2014';
@@ -407,12 +569,12 @@ const VIEW_PAGE = 'viewcompany.html';
 /**
  * Column map for the portfolio table, in render order — the static <thead> in the markup
  * follows the same order, so update both together if a column changes.
- * "key" is the JSON field exactly as /get_inventory spells it. "link" marks the column whose
- * text becomes the row's link to the company file (see rowHref()); "pill" draws a rank pill;
- * "price" sends the value through formatPrice() and right-aligns it.
+ * "key" is the JSON field exactly as /get_inventory spells it. Every cell of a row is the
+ * same link to that company's file (see rowHref()); "pill" draws a rank pill; "price" sends
+ * the value through formatPrice() and right-aligns it.
  */
 const COLUMNS = [
-  { key: 'company_name', cellClass: 'cell-name', link: true },
+  { key: 'company_name', cellClass: 'cell-name' },
   { key: 'company_symbol', cellClass: 'cell-symbol' },
   { key: 'rank', cellClass: 'cell-rank', pill: true },
   { key: 'last_price', cellClass: 'cell-price', price: true },
@@ -584,16 +746,16 @@ function describeRows(count) {
   const size = count ? count + (count === 1 ? ' holding.' : ' holdings.') : 'No holdings yet.';
   caption.textContent = 'Portfolio analytics. ' + size +
     ' Company name, company symbol, rank, latest price, target price and bad price.' +
-    ' Every company name opens that company\u2019s file.';
+    ' Every cell opens that company\u2019s file.';
 }
 
 /**
  * Input: array of holding objects.
  * Output: none.
- * Action: rebuilds tbody from COLUMNS using textContent only (no HTML injection) — the
- *         company name becomes the link to that company's file, the rank gets a pill, the
- *         three prices go through formatPrice() and right-align — then updates the caption.
- * Role: draws the only thing this page contains.
+ * Action: rebuilds tbody from COLUMNS using textContent only (no HTML injection) — the company
+ *         name becomes the link to that company's file, the rank gets a pill, the three prices
+ *         go through formatPrice() and right-align — then updates the caption.
+ * Role: draws the only content this page has below its header.
  */
 function renderTable(rows) {
   const body = document.getElementById('inventory-body');
@@ -610,6 +772,7 @@ function renderTable(rows) {
   for (const record of rows) {
     const row = document.createElement('tr');
     const href = rowHref(record);
+    const name = asText(record.company_name);
 
     for (const column of COLUMNS) {
       const cell = document.createElement('td');
@@ -618,22 +781,28 @@ function renderTable(rows) {
       const raw = record[column.key];
       const text = column.price ? formatPrice(raw) : asText(raw);
 
-      if (column.link && href) {
-        const link = document.createElement('a');
-        link.href = href;
-        link.textContent = text;
-        link.title = 'Open ' + text;
-        cell.appendChild(link);
-      } else if (column.pill && text !== EMPTY) {
+      // Every cell carries the same door: the value wrapped in the link to this company's
+      // file, and the link — not the <td> — carries the padding, so the whole cell clicks.
+      // A holding with no symbol has no file to open, so its cells stay plain text.
+      const fill = document.createElement(href ? 'a' : 'span');
+      fill.className = 'cell-fill';
+      if (href) {
+        fill.href = href;
+        fill.title = 'Open ' + (name === EMPTY ? text : name);
+      }
+
+      if (column.pill && text !== EMPTY) {
         const pill = document.createElement('span');
         pill.className = 'rank-pill';
         pill.textContent = text;
-        cell.appendChild(pill);
+        fill.appendChild(pill);
       } else {
-        cell.textContent = text;
+        fill.textContent = text;
       }
+
       if (text === EMPTY) cell.classList.add('cell-empty');
 
+      cell.appendChild(fill);
       row.appendChild(cell);
     }
     fragment.appendChild(row);
@@ -667,13 +836,97 @@ async function loadInventory() {
 }
 
 /**
+ * Input: the raw JSON payload from /getuser.
+ * Output: the visitor's name, or '' when the payload carries none.
+ * Action: reads the first field that holds a non-empty string (user_name is what the API
+ *         sends; the others are cheap fallbacks), falling back to the payload itself when it
+ *         is a plain string.
+ * Role: one place that decides what the welcome line prints.
+ */
+function toUsername(payload) {
+  if (typeof payload === 'string') return payload.trim();
+  if (!payload || typeof payload !== 'object') return '';
+
+  for (const key of ['user_name', 'username', 'name', 'user']) {
+    const value = payload[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+
+  return '';
+}
+
+/**
+ * Input: none.
+ * Output: none.
+ * Action: GETs /getuser and writes its user_name into the welcome line as "Welcome, <user>";
+ *         sends the visitor back to login.html when the API answers 401/403 (no session), and
+ *         shows an em-dash placeholder with an explanatory tooltip when the API cannot be
+ *         reached at all.
+ * Role: personalizes the top bar — the same line home.html and viewcompany.html carry.
+ */
+async function loadUser() {
+  const name = document.getElementById('username');
+  if (!name) return;
+
+  try {
+    const user = toUsername(await fetchJson(ENDPOINTS.user));
+    name.textContent = user || EMPTY;
+    name.dataset.state = user ? 'ready' : 'empty';
+  } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+
+    name.textContent = EMPTY;
+    name.dataset.state = 'offline';
+    name.title = 'Could not reach ' + API_BASE + ENDPOINTS.user;
+  }
+}
+
+/**
+ * Input: none (bound to the #signout-button click).
+ * Output: none.
+ * Action: POSTs /logout with credentials: 'include' so the API can expire the HttpOnly
+ *         session_id cookie (JavaScript cannot delete it itself), shows a busy label
+ *         meanwhile, then navigates to login.html whatever the response was.
+ * Role: the only way out, since the cookie is invisible to JavaScript.
+ */
+async function signOut() {
+  const button = document.getElementById('signout-button');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Signing out\u2026';
+  }
+
+  try {
+    await fetch(API_BASE + ENDPOINTS.logout, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include'
+    });
+  } catch (error) {
+    // Offline or blocked: the visitor still leaves, and the next request will simply come
+    // back 401 and route through leaveForSignIn().
+  } finally {
+    window.location.replace(SIGNED_OUT_PAGE);
+  }
+}
+
+/**
  * Input: none (the script sits at the end of <body>, so the DOM already exists).
  * Output: none.
- * Action: starts the one read this page makes.
- * Role: single entry point for the table.
+ * Action: starts the username read and the portfolio read together, and wires the sign-out
+ *         button to signOut().
+ * Role: single entry point for the page.
  */
 function init() {
+  loadUser();
   loadInventory();
+
+  const signOutButton = document.getElementById('signout-button');
+  if (signOutButton) signOutButton.addEventListener('click', signOut);
 }
 
 init();
