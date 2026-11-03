@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portfolio analytics</title>
+<style>
+  /* ---------- Design tokens: the same amber + slate-blue pair every page uses ---------- */
+  :root {
+    --bg: #eef2f8;
+    --surface: #ffffff;
+    --ink: #17233b;
+    --ink-soft: #5c6a84;
+    --ink-faint: #8d99ae;
+    --line: #dde4ef;
+    --amber-soft: #fff5cc;
+    --blue-ink: #21456f;
+    --focus: #2f6fed;
+    --shadow-md: 0 14px 32px -24px rgba(23, 35, 59, .55);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.4;
+    background:
+      radial-gradient(1100px 560px at 50% -260px, #ffffff 0%, rgba(255, 255, 255, 0) 72%),
+      var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* One line of text for a screen reader only — the page shows nothing but the table, so
+     this is where the table's own heading and row count live. */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .shell {
+    width: min(1180px, 100% - 40px);
+    margin-inline: auto;
+    /* 20px of breathing room above and below the card. The card is as tall as its rows
+       need — up to the space left in the window (see .panel) — so a short portfolio is a
+       short card and a long one scrolls inside the card. */
+    padding: 20px 0;
+  }
+
+  /* ---------- The table panel: a card whose body scrolls instead of growing ---------- */
+  .panel {
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+  }
+
+  .table-scroll {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-scroll:focus-visible {
+    outline: 3px solid rgba(47, 111, 237, .38);
+    outline-offset: -3px;
+  }
+
+  .table-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+
+  .table-scroll::-webkit-scrollbar-thumb {
+    border: 2px solid var(--surface);
+    border-radius: 999px;
+    background: #cfd8e6;
+  }
+
+  .table-scroll::-webkit-scrollbar-thumb:hover { background: #b7c3d6; }
+
+
+  /* ---------- The table itself ---------- */
+  .data-table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 15px;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    border-right: 1px solid #eaeff7;
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .data-table th:last-child,
+  .data-table td:last-child { border-right: 0; }
+
+  /* The header rides on top of the rows: scrolling the body never hides a column name. */
+  .data-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    border-bottom: 1px solid #d5dfee;
+    background: #f1f5fc;
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .data-table tbody tr:last-child td { border-bottom: 0; }
+  .data-table tbody tr:hover td { background: #f8fbff; }
+
+  /* Wide screens: the company name (the row's link) stays visible while the prices
+     scroll sideways. Below 901px that one column is usually wider than the viewport,
+     so stickiness is dropped there to keep every other column reachable. */
+  @media (min-width: 901px) {
+    .data-table th:first-child,
+    .data-table td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: var(--surface);
+      box-shadow: 1px 0 0 var(--line);
+    }
+
+    .data-table th:first-child {
+      z-index: 3;
+      background: #f1f5fc;
+    }
+
+    .data-table tbody tr:hover td:first-child { background: #f8fbff; }
+  }
+
+  .cell-name { min-width: 240px; font-weight: 600; }
+
+  .cell-name a { color: inherit; text-decoration: none; }
+
+  .cell-name a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .cell-name a:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  .cell-symbol {
+    color: var(--blue-ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13.5px;
+    letter-spacing: .03em;
+  }
+
+  .cell-rank { width: 88px; }
+
+  /* `.data-table td` sets text-align: left, so the price rule has to be at least as
+     specific as it — otherwise every price lines up on the left. */
+  .data-table td.cell-price {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cell-empty { color: var(--ink-faint); }
+
+  .rank-pill {
+    display: inline-flex;
+    justify-content: center;
+    min-width: 38px;
+    padding: 4px 10px;
+    border: 1px solid #f0d98d;
+    border-radius: 999px;
+    background: var(--amber-soft);
+    color: #6b5300;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  /* Loading / empty / error rows span the whole table */
+  .state-cell {
+    padding: 44px 18px;
+    color: var(--ink-soft);
+    text-align: center;
+    white-space: normal;
+  }
+
+  .link-btn {
+    padding: 0 2px;
+    border: 0;
+    background: none;
+    color: var(--focus);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  .link-btn:hover { color: #1a55c8; }
+
+  .link-btn:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (max-width: 560px) {
+    .shell { width: 100%; padding: 12px; }
+    .panel { max-height: calc(100vh - 24px); border-radius: 14px; }
+    .data-table th, .data-table td { padding: 12px 14px; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+
+  <!--
+    The whole page is this one table: what the desk holds (company, symbol, rank) and the
+    three prices that bracket each holding (latest / target / bad). The card is as tall as
+    its rows need, up to the height of the window; `.table-scroll` inside it owns the
+    scrolling, so a hundred holdings scroll in place instead of pushing the page's bottom
+    further and further down. The header row (and, on wide screens, the name column) stays
+    put while the body scrolls.
+    Each row's Company Name is the link to that company's file; the page itself holds no
+    other chrome — no top bar, no heading, no count — so the table is all there is to read.
+  -->
+  <section class="panel" aria-labelledby="portfolio-title">
+    <div
+      class="table-scroll"
+      tabindex="0"
+      role="region"
+      aria-label="Portfolio table, scrollable vertically and horizontally">
+      <table class="data-table">
+        <caption class="sr-only" id="portfolio-title">
+          Portfolio analytics. Company name, company symbol, rank, latest price, target
+          price and bad price. Every company name opens that company's file.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Company Name</th>
+            <th scope="col">Company Symbol</th>
+            <th scope="col">Rank</th>
+            <th scope="col">Latest Price</th>
+            <th scope="col">Target Price</th>
+            <th scope="col">Bad Price</th>
+          </tr>
+        </thead>
+        <tbody id="inventory-body">
+          <tr>
+            <td class="state-cell" colspan="6">Loading the portfolio&hellip;</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+
+<!--
+  Session gate — runs before the table is drawn. The portfolio is the desk's own holdings,
+  so a visitor with no session should land on login.html instead of on a table that can only
+  answer 401/403. GET /getuser is the only honest check: the session_id cookie is HttpOnly
+  and scoped to the API host, so document.cookie can never see it (the same probe index.html,
+  login.html, home.html, viewcompany.html and addcompany.html use).
+    200                         -> stay and load the portfolio
+    401 / 403                   -> login.html (missing or expired session)
+    5xx / timeout / unreachable -> stay, where the table body reports the real answer
+  Kept inline and separate from the table script on purpose: the gate must run even if the
+  script below never executes, and it must not depend on a cached copy of anything.
+-->
+<script>
+(function () {
+  'use strict';
+
+  const API_BASE = 'https://api.kidsfunbank.ca';
+  const USER_PATH = '/getuser';
+  const SIGNED_OUT_PAGE = 'login.html';
+  const PROBE_TIMEOUT_MS = 5000;
+
+  /**
+   * Input: none.
+   * Output: the HTTP status of GET /getuser, or 0 when the API could not be reached.
+   * Action: GETs /getuser with credentials: 'include' — the only way the HttpOnly
+   *         session_id cookie travels to api.kidsfunbank.ca — without caching, waiting at
+   *         most PROBE_TIMEOUT_MS; the body is never read, only the status.
+   * Role: turns "is this visitor signed in?" into one number the gate can test.
+   */
+  async function probeSession() {
+    if (typeof fetch !== 'function') return 0;
+
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = controller ? setTimeout(function () { controller.abort(); }, PROBE_TIMEOUT_MS) : null;
+
+    try {
+      const response = await fetch(API_BASE + USER_PATH, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        credentials: 'include',
+        signal: controller ? controller.signal : undefined
+      });
+      return response.status;
+    } catch (error) {
+      return 0;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Input: a status from probeSession().
+   * Output: true when the API refused the probe for lack of a session (401/403).
+   * Action: compares the status with the two refusal codes.
+   * Role: narrows "not signed in" to what the API actually said, so a timeout or a flaky
+   *       connection never throws the portfolio away.
+   */
+  function isSignedOut(status) {
+    return status === 401 || status === 403;
+  }
+
+  /**
+   * Input: none.
+   * Output: none (it navigates).
+   * Action: replaces this page with login.html.
+   * Role: the single exit for an absent or expired session, so the table never sits in the
+   *       Back history behind the sign-in screen.
+   */
+  function leaveForSignIn() {
+    window.location.replace(SIGNED_OUT_PAGE);
+  }
+
+  /**
+   * Input: none.
+   * Output: nothing (it may navigate away).
+   * Action: probes the session once and sends a refused visitor to login.html.
+   * Role: entry point of the gate — typing this page's URL while signed out ends on the
+   *       sign-in screen instead of on an empty table.
+   */
+  async function guard() {
+    if (isSignedOut(await probeSession())) leaveForSignIn();
+  }
+
+  guard();
+})();
+</script>
+
+
+<script>
+/**
+ * ---------------------------------------------------------------------------
+ * Data contract
+ *   GET https://api.kidsfunbank.ca/get_inventory
+ *     -> { "inventory": [ { "company_name": "Tencent",
+ *                           "company_symbol": "0700.HK",
+ *                           "rank": "D",
+ *                           "last_price": 392.2,
+ *                           "target_price": 600.0,
+ *                           "bad_price": 280.0 }, ... ] }
+ *   Every field is lowercase, words joined by underscores (`company_symbol`, `last_price`),
+ *   and the six of them are exactly the six columns below — nothing is derived here: the
+ *   rank and the three prices are shown as the API reports them.
+ *   The session is the HttpOnly session_id cookie the API set at sign-in, so the request
+ *   carries credentials: 'include' (the page and the API are different hosts). A 401/403 —
+ *   from this call or from the gate above — sends the visitor to login.html; any other
+ *   failure leaves the page in place with a retry.
+ * ---------------------------------------------------------------------------
+ */
+const API_BASE = 'https://api.kidsfunbank.ca';
+const ENDPOINTS = {
+  inventory: '/get_inventory'
+};
+const REQUEST_TIMEOUT_MS = 10000;
+const EMPTY = '\u2014';
+
+/** Page shown when the API says the session is missing or expired. */
+const SIGNED_OUT_PAGE = 'login.html';
+
+/**
+ * The drill-down a company name points at, keyed by `?symbol=…` — the same relative link
+ * home.html uses, so it works whether the page is served from file://, a local server or
+ * www.kidsfunbank.ca (where the host redirects `viewcompany.html` to `/viewcompany`).
+ */
+const VIEW_PAGE = 'viewcompany.html';
+
+/**
+ * Column map for the portfolio table, in render order — the static <thead> in the markup
+ * follows the same order, so update both together if a column changes.
+ * "key" is the JSON field exactly as /get_inventory spells it. "link" marks the column whose
+ * text becomes the row's link to the company file (see rowHref()); "pill" draws a rank pill;
+ * "price" sends the value through formatPrice() and right-aligns it.
+ */
+const COLUMNS = [
+  { key: 'company_name', cellClass: 'cell-name', link: true },
+  { key: 'company_symbol', cellClass: 'cell-symbol' },
+  { key: 'rank', cellClass: 'cell-rank', pill: true },
+  { key: 'last_price', cellClass: 'cell-price', price: true },
+  { key: 'target_price', cellClass: 'cell-price', price: true },
+  { key: 'bad_price', cellClass: 'cell-price', price: true }
+];
+
+/**
+ * Input: any JSON value coming back from the API.
+ * Output: a display string, or an em dash when the value is missing.
+ * Action: stringifies primitives, rejects non-finite numbers, and guards against objects.
+ * Role: every text cell passes through here, so a null field prints a dash instead of "null".
+ */
+function asText(value) {
+  if (value === null || value === undefined || value === '') return EMPTY;
+  if (typeof value === 'number' && !Number.isFinite(value)) return EMPTY;
+  if (typeof value === 'object') return EMPTY;
+  return String(value);
+}
+
+/**
+ * Input: a price as /get_inventory reports it (392.2, 600, "240.19", null).
+ * Output: the number with thousands separators and no lost precision, or an em dash.
+ * Action: keeps a finite number's own digits (up to six decimals, so nothing is rounded
+ *         away) and groups the thousands; a numeric string is parsed the same way.
+ * Role: the three price columns — one place that decides how money reads in this table.
+ */
+function formatPrice(value) {
+  const text = String(value === null || value === undefined ? '' : value).trim();
+  const number = typeof value === 'number' ? value : Number(text);
+  if (!Number.isFinite(number)) return asText(value);
+
+  return number.toLocaleString('en-US', { maximumFractionDigits: 6 });
+}
+
+/**
+ * Input: the raw JSON payload from /get_inventory.
+ * Output: an array of holding objects, in the order the API sent them.
+ * Action: reads `inventory` (the documented envelope), then the common alternatives
+ *         (data / rows / items / holdings) or a bare array; anything that is not an object
+ *         is dropped.
+ * Role: normalizes the answer once, so renderTable() only ever walks holdings.
+ */
+function toRows(payload) {
+  let list = [];
+
+  if (Array.isArray(payload)) {
+    list = payload;
+  } else if (payload && typeof payload === 'object') {
+    for (const key of ['inventory', 'data', 'rows', 'items', 'holdings']) {
+      if (Array.isArray(payload[key])) {
+        list = payload[key];
+        break;
+      }
+    }
+    if (!list.length && payload.company_symbol) list = [payload];
+  }
+
+  return list.filter((item) => item && typeof item === 'object');
+}
+
+/**
+ * Input: one holding from /get_inventory.
+ * Output: the URL that opens that company's file (`viewcompany.html?symbol=…`), or '' when
+ *         the holding carries no symbol.
+ * Action: reads company_symbol and URL-encodes it.
+ * Role: the one decision behind the link in the Company Name cell — a holding with no
+ *       symbol stays plain text instead of pointing at nothing.
+ */
+function rowHref(record) {
+  const symbol = asText(record ? record.company_symbol : null);
+  return symbol === EMPTY ? '' : VIEW_PAGE + '?symbol=' + encodeURIComponent(symbol);
+}
+
+/**
+ * Input: an API path such as "/get_inventory".
+ * Output: the parsed JSON body.
+ * Action: GETs API_BASE + path with credentials: 'include' — the session is the HttpOnly
+ *         session_id cookie, which a cross-origin request only carries when credentials are
+ *         included — without caching, aborting after REQUEST_TIMEOUT_MS, and throws an Error
+ *         carrying .status on any non-2xx.
+ * Role: the page's single network helper.
+ */
+async function fetchJson(path) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(API_BASE + path, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include',
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      const error = new Error('HTTP ' + response.status);
+      error.status = response.status;
+      throw error;
+    }
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Input: an error thrown by fetchJson().
+ * Output: true when the API refused the request for lack of a session (401/403).
+ * Action: reads the .status fetchJson() attaches to its errors.
+ * Role: separates "signed out" (back to login.html) from "the portfolio is unavailable"
+ *       (keep the page, offer a retry).
+ */
+function isSignedOut(error) {
+  return Boolean(error) && (error.status === 401 || error.status === 403);
+}
+
+/**
+ * Input: none.
+ * Output: none (it navigates).
+ * Action: replaces the page with login.html.
+ * Role: the single exit for an expired session discovered while loading the table.
+ */
+function leaveForSignIn() {
+  window.location.replace(SIGNED_OUT_PAGE);
+}
+
+/**
+ * Input: a message, and whether a "Try again" control should be offered.
+ * Output: none.
+ * Action: replaces the table body with one full-width row (loading / empty / error).
+ * Role: the only place this page says anything — the table body is the page's whole voice.
+ */
+function showState(message, retry) {
+  const body = document.getElementById('inventory-body');
+  if (!body) return;
+  body.textContent = '';
+
+  const row = document.createElement('tr');
+  const cell = document.createElement('td');
+  cell.className = 'state-cell';
+  cell.colSpan = COLUMNS.length;
+  cell.textContent = message;
+
+  if (retry) {
+    cell.append(' ');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'link-btn';
+    button.textContent = 'Try again';
+    button.addEventListener('click', loadInventory);
+    cell.appendChild(button);
+  }
+
+  row.appendChild(cell);
+  body.appendChild(row);
+}
+
+/**
+ * Input: the number of holdings drawn.
+ * Output: none.
+ * Action: keeps the screen-reader caption in step with the table ("2 holdings"), so the
+ *         row count is announced without printing anything a sighted user would see.
+ * Role: the page shows no heading or count, so this is where the table explains its size.
+ */
+function describeRows(count) {
+  const caption = document.getElementById('portfolio-title');
+  if (!caption) return;
+
+  const size = count ? count + (count === 1 ? ' holding.' : ' holdings.') : 'No holdings yet.';
+  caption.textContent = 'Portfolio analytics. ' + size +
+    ' Company name, company symbol, rank, latest price, target price and bad price.' +
+    ' Every company name opens that company\u2019s file.';
+}
+
+/**
+ * Input: array of holding objects.
+ * Output: none.
+ * Action: rebuilds tbody from COLUMNS using textContent only (no HTML injection) — the
+ *         company name becomes the link to that company's file, the rank gets a pill, the
+ *         three prices go through formatPrice() and right-align — then updates the caption.
+ * Role: draws the only thing this page contains.
+ */
+function renderTable(rows) {
+  const body = document.getElementById('inventory-body');
+  if (!body) return;
+  body.textContent = '';
+
+  if (!rows.length) {
+    describeRows(0);
+    showState('The portfolio is empty \u2014 add a company and it will appear here.', true);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const record of rows) {
+    const row = document.createElement('tr');
+    const href = rowHref(record);
+
+    for (const column of COLUMNS) {
+      const cell = document.createElement('td');
+      if (column.cellClass) cell.className = column.cellClass;
+
+      const raw = record[column.key];
+      const text = column.price ? formatPrice(raw) : asText(raw);
+
+      if (column.link && href) {
+        const link = document.createElement('a');
+        link.href = href;
+        link.textContent = text;
+        link.title = 'Open ' + text;
+        cell.appendChild(link);
+      } else if (column.pill && text !== EMPTY) {
+        const pill = document.createElement('span');
+        pill.className = 'rank-pill';
+        pill.textContent = text;
+        cell.appendChild(pill);
+      } else {
+        cell.textContent = text;
+      }
+      if (text === EMPTY) cell.classList.add('cell-empty');
+
+      row.appendChild(cell);
+    }
+    fragment.appendChild(row);
+  }
+
+  body.appendChild(fragment);
+  describeRows(rows.length);
+}
+
+/**
+ * Input: none.
+ * Output: none.
+ * Action: GETs /get_inventory, renders it, sends the visitor to login.html on 401/403, and
+ *         shows an error row with a retry button when the endpoint is unreachable.
+ * Role: the page's data loader, and the only writer of its table.
+ */
+async function loadInventory() {
+  showState('Loading the portfolio\u2026', false);
+  try {
+    renderTable(toRows(await fetchJson(ENDPOINTS.inventory)));
+  } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+
+    describeRows(0);
+    showState('The portfolio is not available right now \u2014 ' + API_BASE + ENDPOINTS.inventory +
+      ' did not answer.', true);
+  }
+}
+
+/**
+ * Input: none (the script sits at the end of <body>, so the DOM already exists).
+ * Output: none.
+ * Action: starts the one read this page makes.
+ * Role: single entry point for the table.
+ */
+function init() {
+  loadInventory();
+}
+
+init();
+</script>
+</body>
+</html>
+
