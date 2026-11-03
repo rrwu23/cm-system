@@ -27,6 +27,7 @@
   // reaches the API at all (that 405 is the static host, not the backend).
   const API_BASE = 'https://api.kidsfunbank.ca';
   const SUBMIT_PATH = API_BASE + '/addcompany';
+  const INVENTORY_PATH = API_ABSE + '/inventory_step'
   // The footer names the endpoint "/addcompany" — short enough for the sticky bar, and the
   // same words the static markup uses before this script runs. SUBMIT_PATH stays absolute
   // because the page host only serves GETs.
@@ -334,7 +335,7 @@
     add('cyclical_score', scores.cyclicalScore);
     add('anti_fragile_score', scores.antifragileScore);
     add('growth_score', scores.growthScore);
-    add('winning_probability', scores.winningProbability);
+    add('winning_probability', scores.winningProbability/100);
     add('rank', scores.rank);
     // The model's three prices, each part posted only when its box was filled (add() skips
     // blanks): good_price / target_price / bad_price. There is no current_price part —
@@ -801,6 +802,7 @@
         showHint('Not saved — ' + SUBMIT_LABEL + ' answered HTTP ' + response.status + '.',
           'error');
       }
+      fetch()
       return response;
     }).catch(function (error) {
       const reason = (error && error.message) ? error.message : 'network error';
