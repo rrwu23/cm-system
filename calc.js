@@ -27,7 +27,7 @@
   // reaches the API at all (that 405 is the static host, not the backend).
   const API_BASE = 'https://api.kidsfunbank.ca';
   const SUBMIT_PATH = API_BASE + '/addcompany';
-  const INVENTORY_PATH = API_ABSE + '/inventory_step'
+  const INVENTORY_PATH = API_BASE + '/inventory_step'
   // The footer names the endpoint "/addcompany" — short enough for the sticky bar, and the
   // same words the static markup uses before this script runs. SUBMIT_PATH stays absolute
   // because the page host only serves GETs.
