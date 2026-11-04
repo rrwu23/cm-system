@@ -224,6 +224,69 @@
      stop accepting input, so the sheet never pretends it is going somewhere. */
   .name-box[disabled] { opacity: .55; cursor: not-allowed; }
 
+  /* ---------- Suggestion dropdown: the dashboard's list, hanging under the box ----------
+     The wrapper is only the dropdown's anchor — it holds the box and nothing else, so the
+     absolutely positioned list can sit 10px below it, square with both edges. The list is
+     the same one home.html draws (amber frame, white sheet, ticker face for symbols), so
+     typing a company here feels exactly like typing one on the dashboard. */
+  .company-field { position: relative; }
+
+  .suggest {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 10px);
+    left: 0;
+    right: 0;
+    max-height: 296px;
+    margin: 0;
+    padding: 8px;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    list-style: none;
+    border: 2px solid var(--amber-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: 0 24px 48px -28px rgba(23, 35, 59, .65), var(--shadow-md);
+    text-align: left;
+  }
+
+  /* [hidden] wins over nothing here, but the explicit rule keeps the panel closed
+     even if a later display value is set on .suggest */
+  .suggest[hidden] { display: none; }
+
+  .suggest-option {
+    padding: 10px 14px;
+    border-radius: 9px;
+    color: var(--ink);
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+
+  /* A symbol reads as a ticker, exactly like the Symbol column on the dashboard */
+  .suggest-option[data-kind="symbol"] {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 15.5px;
+    letter-spacing: .03em;
+  }
+
+  /* The keyboard cursor and the mouse hover are the same row */
+  .suggest-option:hover,
+  .suggest-option.is-active {
+    background: var(--amber-soft);
+    color: var(--amber-ink);
+  }
+
+  .suggest-empty {
+    padding: 12px 14px;
+    color: var(--ink-faint);
+    font-size: 14.5px;
+  }
+
   /* The hint sits under the box and is also the page's only error line: it says what to
      type first, or why the sheet has nowhere to go. */
   .hint {
@@ -302,6 +365,8 @@
     .card { padding: 24px 20px 22px; }
     .ask { font-size: 22px; }
     .name-box { height: 76px; font-size: 18px; }
+    .suggest { max-height: 232px; }
+    .suggest-option { font-size: 16px; }
     .ask-actions .btn { width: 100%; }
   }
 
@@ -339,20 +404,39 @@
     update-score.html?company_name=<the name>. The sheet knows nothing about those pages
     beyond their names, so a new flow only needs a link on the dashboard and the page it
     points at.
+
+    The box carries the dashboard's typeahead: the first keystroke (or ArrowDown) draws the
+    names and symbols from /all-names and /all-symbols that start with what has been typed,
+    clicking one or pressing Enter on it fills the box, and Enter with no row highlighted
+    submits the sheet. The list is only an aid — a name it has never heard of is still
+    allowed through, because the update page, not this sheet, decides what exists.
   -->
   <section class="card" aria-labelledby="ask-title">
     <h1 class="ask" id="ask-title">Enter the name of the company you want to update</h1>
 
     <form class="ask-form" id="ask-form" novalidate>
-      <label class="sr-only" for="company-name">Company name</label>
-      <input
-        class="name-box"
-        id="company-name"
-        name="company_name"
-        type="text"
-        placeholder="Company name"
-        autocomplete="off"
-        spellcheck="false">
+      <div class="company-field">
+        <label class="sr-only" for="company-name">Company name</label>
+        <input
+          class="name-box"
+          id="company-name"
+          name="company_name"
+          type="text"
+          placeholder="Company name"
+          autocomplete="off"
+          spellcheck="false"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded="false"
+          aria-controls="company-suggest"
+          aria-haspopup="listbox">
+        <ul
+          class="suggest"
+          id="company-suggest"
+          role="listbox"
+          aria-label="Company names and symbols"
+          hidden></ul>
+      </div>
       <p class="hint" id="ask-hint" role="status" aria-live="polite">Then press Next.</p>
       <div class="ask-actions">
         <button class="btn btn-amber" id="next-button" type="submit">Next</button>
@@ -455,15 +539,21 @@
 /**
  * ---------------------------------------------------------------------------
  * Data contract
- *   GET  https://api.kidsfunbank.ca/getuser -> { user_name, ... } for "Welcome, <user>"
- *   POST https://api.kidsfunbank.ca/logout  -> clears the session_id cookie
+ *   GET  https://api.kidsfunbank.ca/getuser      -> { user_name, ... } for "Welcome, <user>"
+ *   GET  https://api.kidsfunbank.ca/all-names    -> ["Tencent", ...]  to suggest names
+ *   GET  https://api.kidsfunbank.ca/all-symbols  -> ["0700.HK", ...]  to suggest symbols
+ *   POST https://api.kidsfunbank.ca/logout       -> clears the session_id cookie
  *   (no session -> 401 "Not authenticated")
  * The one thing this page reads is the query string:
  *   ?type=<flow>   -> which update is being started (update-analysis, update-score, …)
  * and the one thing it writes:
  *   <flow>.html?company_name=<the name in the box>
- * The session is the HttpOnly session_id cookie the API set at sign-in: that request
- * carries it only with credentials: 'include', because the page and the API are different
+ * The typeahead under the box is the dashboard's, built from the same two lists: both are
+ * plain arrays of strings, both are read once (on the first keystroke, not at load) and then
+ * filtered locally by prefix, so typing never costs a request. A list that fails is simply
+ * empty — the box keeps working as a plain text field, and any name can still be typed.
+ * The session is the HttpOnly session_id cookie the API set at sign-in: those requests
+ * carry it only with credentials: 'include', because the page and the API are different
  * hosts (www vs api.kidsfunbank.ca).
  * A flow is not validated against a list on purpose: the next page's name IS the flow, so a
  * new flow needs a dashboard link and the page it points at — nothing here.
@@ -472,10 +562,14 @@
 const API_BASE = 'https://api.kidsfunbank.ca';
 const ENDPOINTS = {
   user: '/getuser',
+  names: '/all-names',
+  symbols: '/all-symbols',
   logout: '/logout'
 };
 const REQUEST_TIMEOUT_MS = 10000;
 const EMPTY = '\u2014';
+/** Rows the dropdown will ever draw at once (it scrolls instead of growing). */
+const SUGGEST_LIMIT = 8;
 
 /** Page shown when the API says the session is missing or expired. */
 const SIGNED_OUT_PAGE = 'login.html';
@@ -727,6 +821,295 @@ async function signOut() {
   }
 }
 
+/* ---------- Typeahead: /all-names + /all-symbols under the name box ----------
+   The same dropdown the dashboard draws under its "View company" box: a prefix match over the
+   two lists, one cursor shared by the arrow keys and the mouse, and Enter taking the
+   highlighted row. The one difference is what Enter does with no row highlighted — here it
+   submits the sheet instead of opening "View company". */
+
+/** The rows currently drawn in the dropdown, and which one the keyboard sits on (-1 = none). */
+let drawnSuggestions = [];
+let activeSuggestion = -1;
+/** The merged [{value, kind}] list, kept after the first read so typing stays local. */
+let suggestionCache = null;
+
+/**
+ * Input: raw JSON payload from /all-names or /all-symbols.
+ * Output: an array of unique, trimmed, non-empty strings.
+ * Action: accepts the bare array both endpoints return plus the usual envelopes
+ *         (names / symbols / data / items / results / values); a row that is an object
+ *         contributes its name, company_name or symbol; blanks and repeats are dropped.
+ * Role: turns either list into plain suggestion values before the two are merged.
+ */
+function toStrings(payload) {
+  let list = [];
+
+  if (Array.isArray(payload)) {
+    list = payload;
+  } else if (payload && typeof payload === 'object') {
+    for (const key of ['names', 'symbols', 'data', 'items', 'results', 'values']) {
+      if (Array.isArray(payload[key])) {
+        list = payload[key];
+        break;
+      }
+    }
+  }
+
+  const seen = new Set();
+  const words = [];
+  for (const item of list) {
+    let value = '';
+    if (typeof item === 'string') value = item;
+    else if (item && typeof item === 'object') value = item.name || item.company_name || item.symbol || '';
+
+    const word = typeof value === 'string' ? value.trim() : '';
+    if (!word || seen.has(word)) continue;
+    seen.add(word);
+    words.push(word);
+  }
+  return words;
+}
+
+/**
+ * Input: none.
+ * Output: a promise of [{ value, kind }] — names first, then symbols, one entry per value.
+ * Action: reads /all-names and /all-symbols on the first call and caches the merged result;
+ *         a list that fails counts as empty, and an empty merge is not cached, so a later
+ *         keystroke asks again.
+ * Role: the page's only read of the two lists — everything after it is local filtering. It
+ *       runs on the first keystroke rather than at load, because a visitor who types a name
+ *       straight through never needs the list at all.
+ */
+function loadSuggestions() {
+  if (suggestionCache) return suggestionCache;
+
+  suggestionCache = Promise.all([
+    fetchJson(ENDPOINTS.names).then(toStrings).catch(() => []),
+    fetchJson(ENDPOINTS.symbols).then(toStrings).catch(() => [])
+  ]).then(([names, symbols]) => {
+    const items = [];
+    const seen = new Set();
+    for (const [kind, words] of [['name', names], ['symbol', symbols]]) {
+      for (const value of words) {
+        const key = value.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        items.push({ value: value, kind: kind });
+      }
+    }
+    if (!items.length) suggestionCache = null;   // nothing came back: ask again next time
+    return items;
+  });
+
+  return suggestionCache;
+}
+
+/**
+ * Input: the merged suggestion list and the text in the box.
+ * Output: at most SUGGEST_LIMIT entries whose value starts with that text.
+ * Action: case-insensitive prefix match on the trimmed text; an empty box keeps the first
+ *         SUGGEST_LIMIT entries, which is what ArrowDown alone still draws.
+ * Role: the "matching initial values" rule, shared with the dashboard.
+ */
+function filterSuggestions(items, text) {
+  const needle = String(text || '').trim().toLowerCase();
+  const hits = [];
+
+  for (const item of items) {
+    if (needle && !item.value.toLowerCase().startsWith(needle)) continue;
+    hits.push(item);
+    if (hits.length === SUGGEST_LIMIT) break;
+  }
+  return hits;
+}
+
+/**
+ * Input: an index into drawnSuggestions, or -1 for "no cursor".
+ * Output: none.
+ * Action: moves the .is-active / aria-selected highlight to that row (wrapping at both ends),
+ *         scrolls it into view, and names it in the input's aria-activedescendant.
+ * Role: mouse hover and the arrow keys share one cursor, so Enter always takes the row the
+ *       eye is already on.
+ */
+function setActiveSuggestion(index) {
+  const list = document.getElementById('company-suggest');
+  const input = document.getElementById('company-name');
+  if (!list) return;
+
+  const count = drawnSuggestions.length;
+  activeSuggestion = count ? (index + count) % count : -1;
+
+  list.querySelectorAll('.suggest-option').forEach((row, position) => {
+    const active = position === activeSuggestion;
+    row.classList.toggle('is-active', active);
+    row.setAttribute('aria-selected', active ? 'true' : 'false');
+    if (active && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+  });
+
+  if (!input) return;
+  if (activeSuggestion < 0) input.removeAttribute('aria-activedescendant');
+  else input.setAttribute('aria-activedescendant', 'suggest-' + activeSuggestion);
+}
+
+/**
+ * Input: none.
+ * Output: none.
+ * Action: empties and hides the dropdown, reports aria-expanded="false", and forgets the drawn
+ *         rows and the cursor.
+ * Role: the single "close" behind Escape, Tab, blur and a completed pick.
+ */
+function closeSuggestions() {
+  const list = document.getElementById('company-suggest');
+  const input = document.getElementById('company-name');
+
+  drawnSuggestions = [];
+  activeSuggestion = -1;
+
+  if (list) {
+    list.textContent = '';
+    list.hidden = true;
+  }
+  if (input) {
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+  }
+}
+
+/**
+ * Input: the rows to draw, plus the line to show instead when there are none.
+ * Output: none.
+ * Action: rebuilds the <ul> — one <li role="option"> per suggestion (symbols in the same
+ *         ticker face the dashboard uses), or one muted line when nothing matched — then
+ *         reveals it and sets aria-expanded="true". Values go in through textContent only,
+ *         and a row's id is its position, for aria-activedescendant.
+ * Role: the only writer of the dropdown. The mousedown handler preventDefaults so the click
+ *       does not steal the caret: the box keeps focus and never blurs mid-pick.
+ */
+function renderSuggestions(items, note) {
+  const list = document.getElementById('company-suggest');
+  const input = document.getElementById('company-name');
+  if (!list) return;
+
+  drawnSuggestions = items.slice();
+  activeSuggestion = -1;
+  list.textContent = '';
+
+  if (!drawnSuggestions.length) {
+    const row = document.createElement('li');
+    row.className = 'suggest-empty';
+    row.setAttribute('role', 'presentation');
+    row.textContent = note || 'No matching company name or symbol.';
+    list.appendChild(row);
+  } else {
+    const fragment = document.createDocumentFragment();
+    drawnSuggestions.forEach((item, index) => {
+      const row = document.createElement('li');
+      row.className = 'suggest-option';
+      row.id = 'suggest-' + index;
+      row.dataset.kind = item.kind;
+      row.setAttribute('role', 'option');
+      row.setAttribute('aria-selected', 'false');
+      row.title = item.kind === 'name' ? 'Company name' : 'Company symbol';
+      row.textContent = item.value;
+      row.addEventListener('mousedown', (event) => {
+        event.preventDefault();          // keep the caret (and the focus) in the box
+        chooseSuggestion(item);
+      });
+      row.addEventListener('mousemove', () => {
+        if (activeSuggestion !== index) setActiveSuggestion(index);
+      });
+      fragment.appendChild(row);
+    });
+    list.appendChild(fragment);
+  }
+
+  list.scrollTop = 0;
+  list.hidden = false;
+  if (input) input.setAttribute('aria-expanded', 'true');
+}
+
+/**
+ * Input: one { value, kind } suggestion.
+ * Output: none.
+ * Action: writes the value into the box, closes the dropdown and leaves the caret in the box,
+ *         ready for Enter or a press of Next.
+ * Role: the pick path shared by a mouse click and by Enter. It fills the box but does not send
+ *       the visitor anywhere, so Next stays the only way off this page.
+ */
+function chooseSuggestion(item) {
+  const input = document.getElementById('company-name');
+  if (!input || !item) return;
+
+  input.value = item.value;
+  closeSuggestions();
+  input.focus();
+}
+
+/**
+ * Input: nothing (it reads the box).
+ * Output: none (it may draw the dropdown).
+ * Action: loads the two lists (first use only), keeps the rows that start with the typed text
+ *         and draws them. Does nothing when the box has already lost focus — the case when the
+ *         lists arrive after the visitor has clicked away.
+ * Role: the one place the dropdown is (re)filled — wired to every keystroke, and to ArrowDown
+ *       when the list is closed (a click into the box opens nothing on its own, exactly as on
+ *       the dashboard).
+ */
+async function refreshSuggestions() {
+  const input = document.getElementById('company-name');
+  if (!input || document.activeElement !== input) return;
+
+  const items = await loadSuggestions();
+  if (document.activeElement !== input) return;
+
+  const text = input.value.trim();
+  if (!items.length) {
+    renderSuggestions([], 'Company names are not available right now.');
+    return;
+  }
+
+  renderSuggestions(filterSuggestions(items, text), text
+    ? 'No company name or symbol starts with "' + text + '"'
+    : 'No company names or symbols on file yet.');
+}
+
+/**
+ * Input: the keydown event of the name box.
+ * Output: none (it may preventDefault).
+ * Action: the arrow keys open the dropdown or move its cursor; Enter takes the highlighted row
+ *         and otherwise falls through to the browser, which submits the form — the same as a
+ *         press of Next; Escape or Tab close the list, Tab still moving focus on.
+ * Role: makes the dropdown usable without a mouse while leaving Enter's "go on" meaning intact
+ *       whenever no row is highlighted.
+ */
+function handleSuggestKeydown(event) {
+  const list = document.getElementById('company-suggest');
+  const open = Boolean(list) && !list.hidden;
+
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    if (!open) {
+      refreshSuggestions();
+      return;
+    }
+    event.preventDefault();
+    setActiveSuggestion(activeSuggestion + (event.key === 'ArrowDown' ? 1 : -1));
+    return;
+  }
+
+  if (event.key === 'Enter') {
+    if (open && activeSuggestion >= 0) {
+      event.preventDefault();
+      chooseSuggestion(drawnSuggestions[activeSuggestion]);
+    }
+    // No row highlighted: let the browser submit the form, i.e. run goNext().
+    return;
+  }
+
+  if ((event.key === 'Escape' || event.key === 'Tab') && open) {
+    closeSuggestions();
+  }
+}
+
 /**
  * Input: none (reads ?type= itself).
  * Output: none.
@@ -794,8 +1177,11 @@ function goNext(event) {
 /**
  * Input: none (the script sits at the end of <body>, so the DOM already exists).
  * Output: none.
- * Action: applies ?type=, starts the username read, wires the form's submit and the sign-out
- *         button, and puts the caret in the name box when the sheet is usable.
+ * Action: applies ?type=, starts the username read, wires the form's submit, the box's
+ *         typeahead (keystroke, blur, arrow keys) and the sign-out button, and puts the caret
+ *         in the name box when the sheet is usable. The two suggestion lists are *not* read
+ *         here: the first keystroke draws them, so a visitor who types a name straight through
+ *         to Next costs no extra request.
  * Role: single entry point for the page.
  */
 function init() {
@@ -809,7 +1195,15 @@ function init() {
   if (signOutButton) signOutButton.addEventListener('click', signOut);
 
   const box = document.getElementById('company-name');
-  if (box && !box.disabled) box.focus();
+  if (box) {
+    box.addEventListener('input', refreshSuggestions);
+    // No 'focus' listener on purpose: clicking the box only puts the caret in it. The dropdown
+    // opens on the first keystroke (and on ArrowDown, which asks for it by name), exactly as on
+    // the dashboard, so a visitor who only wants to paste or read the field is not covered.
+    box.addEventListener('blur', closeSuggestions);
+    box.addEventListener('keydown', handleSuggestKeydown);
+    if (!box.disabled) box.focus();
+  }
 }
 
 init();
