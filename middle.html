@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Update a company &middot; Company desk</title>
+<style>
+  /* ---------- Design tokens: the same amber + slate-blue pair every page uses ---------- */
+  :root {
+    --bg: #eef2f8;
+    --surface: #ffffff;
+    --ink: #17233b;
+    --ink-soft: #5c6a84;
+    --ink-faint: #8d99ae;
+    --line: #dde4ef;
+    --amber: #ffd24a;
+    --amber-strong: #e5a900;
+    --amber-soft: #fff5cc;
+    --amber-ink: #3a2c00;
+    --blue-fill: #d5e4f7;   /* the pale blue of the name box in the sketch */
+    --blue-edge: #24344f;   /* its dark outline */
+    --focus: #2f6fed;
+    --danger: #b4232a;
+    --radius: 14px;
+    --shadow-sm: 0 1px 2px rgba(23, 35, 59, .06);
+    --shadow-md: 0 14px 32px -24px rgba(23, 35, 59, .55);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body { min-height: 100%; }
+
+  body {
+    margin: 0;
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.4;
+    background:
+      radial-gradient(1100px 560px at 50% -260px, #ffffff 0%, rgba(255, 255, 255, 0) 72%),
+      var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* One line of text for a screen reader only — the label the big blue box has no room for */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .shell {
+    width: min(1180px, 100% - 40px);
+    margin-inline: auto;
+    padding: 20px 0 64px;
+  }
+
+  /* ---------- Top bar: "Welcome, <user>" + page stamp + Sign out ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 4px 0;
+  }
+
+  .welcome {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 20px;
+    min-width: 0;
+  }
+
+  .welcome .mark {
+    flex: none;
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    background: linear-gradient(140deg, var(--amber) 0%, var(--amber-strong) 100%);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .welcome .label { color: var(--ink-soft); font-weight: 500; }
+
+  .welcome .name {
+    font-weight: 700;
+    letter-spacing: -.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .welcome .name[data-state="offline"],
+  .welcome .name[data-state="empty"] { color: var(--ink-soft); }
+
+  /* The page stamp: the same dashed pill every screen wears. Here it names the flow the
+     ?type= parameter chose ("Update analysis" / "Update score"), because the heading below
+     is deliberately the same sentence on both. */
+  .stamp {
+    flex: none;
+    padding: 6px 12px;
+    border: 1px dashed var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .65);
+    color: var(--ink-faint);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  .topbar-right {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Sign out: POSTs /logout so the API clears the HttpOnly session_id cookie */
+  .signout {
+    padding: 7px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease, opacity .15s ease;
+  }
+
+  .signout:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  .signout:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .signout[disabled] { opacity: .6; cursor: progress; }
+
+  /* ---------- Breadcrumb back to the dashboard ---------- */
+  .crumbs { margin: 20px 0 16px; }
+
+  .home-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 13px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink-soft);
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-decoration: none;
+    transition: color .15s ease, border-color .15s ease;
+  }
+
+  .home-link:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  .home-link:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  /* ---------- The sheet: one question, one blue box, one Next ---------- */
+  .card {
+    width: min(820px, 100%);
+    margin: 26px auto 0;
+    padding: 34px 34px 30px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* The question, wrapping to two lines the way the sketch has it: a narrow measure on a
+     wide card. The wording is the same whichever flow ?type= starts. */
+  .ask {
+    margin: 0 0 22px;
+    max-width: 24ch;
+    font-size: clamp(22px, 3.4vw, 30px);
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -.015em;
+  }
+
+  /* The name box: the pale blue field with the dark outline from the sketch, kept big
+     enough that the company name is the only thing on the page you cannot miss. */
+  .name-box {
+    display: block;
+    width: 100%;
+    height: 88px;
+    padding: 0 20px;
+    border: 2px solid var(--blue-edge);
+    border-radius: 8px;
+    background: var(--blue-fill);
+    color: var(--ink);
+    font: inherit;
+    font-size: 21px;
+    font-weight: 500;
+    letter-spacing: -.01em;
+    transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+  }
+
+  .name-box::placeholder { color: #62758f; font-weight: 500; }
+
+  .name-box:hover { background: #cfe0f7; }
+
+  .name-box:focus {
+    outline: none;
+    background: #e2eefb;
+    border-color: var(--focus);
+    box-shadow: 0 0 0 4px rgba(47, 111, 237, .22);
+  }
+
+  /* An unusable page (no ?type=, or a malformed one): the box and Next stay in place but
+     stop accepting input, so the sheet never pretends it is going somewhere. */
+  .name-box[disabled] { opacity: .55; cursor: not-allowed; }
+
+  /* The hint sits under the box and is also the page's only error line: it says what to
+     type first, or why the sheet has nowhere to go. */
+  .hint {
+    min-height: 20px;
+    margin: 14px 0 0;
+    color: var(--ink-soft);
+    font-size: 13.5px;
+  }
+
+  .hint[data-state="error"] { color: var(--danger); font-weight: 600; }
+
+  /* ---------- Next: the same amber button the dashboard's "View company" wears ---------- */
+  .ask-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 18px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    user-select: none;
+    transition: transform .16s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease;
+  }
+
+  .btn-amber {
+    height: 62px;
+    min-width: 168px;
+    padding: 0 34px;
+    border: 1px solid #cf9b00;
+    background: linear-gradient(150deg, var(--amber) 0%, var(--amber-strong) 100%);
+    color: var(--amber-ink);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    box-shadow: var(--shadow-md);
+  }
+
+  .btn-amber:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 30px -20px rgba(224, 168, 0, .95);
+  }
+
+  .btn-amber:active { transform: translateY(0); }
+
+  .btn-amber[disabled] {
+    border-color: var(--line);
+    background: #e7e9ee;
+    color: var(--ink-faint);
+    box-shadow: none;
+    transform: none;
+    cursor: not-allowed;
+  }
+
+  .btn:focus-visible,
+  .name-box:focus-visible {
+    outline: 3px solid rgba(47, 111, 237, .38);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 560px) {
+    .shell { width: min(1180px, 100% - 24px); }
+    .welcome { font-size: 17px; }
+    .welcome .mark { width: 28px; height: 28px; }
+    /* The stamp stays on this page at every width — it is what names the flow being started —
+       so on a phone the header wraps instead of squeezing the greeting: the welcome line keeps
+       the first row and the stamp + Sign out share the second. */
+    .topbar { flex-wrap: wrap; row-gap: 10px; }
+    .topbar-right { width: 100%; justify-content: space-between; }
+    .stamp { font-size: 10px; padding: 5px 9px; letter-spacing: .08em; }
+    .card { padding: 24px 20px 22px; }
+    .ask { font-size: 22px; }
+    .name-box { height: 76px; font-size: 18px; }
+    .ask-actions .btn { width: 100%; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+
+<body>
+<main class="shell">
+
+  <!-- Welcome line: "Welcome, <user>" — <user> is /getuser's user_name -->
+  <header class="topbar">
+    <div class="welcome">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="label">Welcome,</span>
+      <span class="name" id="username" data-state="loading">&hellip;</span>
+    </div>
+    <div class="topbar-right">
+      <!-- The stamp names the flow ?type= picked; applyType() fills it in. -->
+      <span class="stamp" id="type-label">Update a company</span>
+      <button class="signout" id="signout-button" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <a class="home-link" href="home.html">&larr; Back to dashboard</a>
+  </nav>
+
+  <!--
+    The one question this page asks: which company is being updated. ?type= decides where
+    "Next" goes — middle.html?type=update-analysis lets the box write
+    update-analysis.html?company_name=<the name>, middle.html?type=update-score writes
+    update-score.html?company_name=<the name>. The sheet knows nothing about those pages
+    beyond their names, so a new flow only needs a link on the dashboard and the page it
+    points at.
+  -->
+  <section class="card" aria-labelledby="ask-title">
+    <h1 class="ask" id="ask-title">Enter the name of the company you want to update</h1>
+
+    <form class="ask-form" id="ask-form" novalidate>
+      <label class="sr-only" for="company-name">Company name</label>
+      <input
+        class="name-box"
+        id="company-name"
+        name="company_name"
+        type="text"
+        placeholder="Company name"
+        autocomplete="off"
+        spellcheck="false">
+      <p class="hint" id="ask-hint" role="status" aria-live="polite">Then press Next.</p>
+      <div class="ask-actions">
+        <button class="btn btn-amber" id="next-button" type="submit">Next</button>
+      </div>
+    </form>
+  </section>
+</main>
+
+<!--
+  Session gate — runs before the sheet's own script.
+  A static page can be opened by its URL without ever passing the sign-in screen, so every
+  screen in this app probes the API first and leaves for login.html when it says 401/403.
+  GET /getuser is the only honest check: the session_id cookie is HttpOnly and scoped to the
+  API host, so document.cookie can never see it (the same probe index.html, login.html,
+  home.html, viewcompany.html, addcompany.html and portfolioanalytics.html use).
+    200                         -> stay and ask for the company name
+    401 / 403                   -> login.html (missing or expired session)
+    5xx / timeout / unreachable -> stay; nothing is fetched here, so there is nothing to lose
+  Kept inline and separate from the page script on purpose: the gate must run even if the
+  script below never executes, and it must not depend on a cached copy of anything.
+-->
+<script>
+(function () {
+  'use strict';
+
+  const API_BASE = 'https://api.kidsfunbank.ca';
+  const USER_PATH = '/getuser';
+  const SIGNED_OUT_PAGE = 'login.html';
+  const PROBE_TIMEOUT_MS = 5000;
+
+  /**
+   * Input: none.
+   * Output: the HTTP status of GET /getuser, or 0 when the API could not be reached.
+   * Action: GETs /getuser with credentials: 'include' — the only way the HttpOnly
+   *         session_id cookie travels to api.kidsfunbank.ca — without caching, waiting at
+   *         most PROBE_TIMEOUT_MS; the body is never read, only the status.
+   * Role: turns "is this visitor signed in?" into one number the gate can test.
+   */
+  async function probeSession() {
+    if (typeof fetch !== 'function') return 0;
+
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = controller ? setTimeout(function () { controller.abort(); }, PROBE_TIMEOUT_MS) : null;
+
+    try {
+      const response = await fetch(API_BASE + USER_PATH, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        credentials: 'include',
+        signal: controller ? controller.signal : undefined
+      });
+      return response.status;
+    } catch (error) {
+      return 0;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Input: a status from probeSession().
+   * Output: true when the API refused the probe for lack of a session (401/403).
+   * Action: compares the status with the two refusal codes.
+   * Role: narrows "not signed in" to what the API actually said, so a timeout or a flaky
+   *       connection never throws the sheet away.
+   */
+  function isSignedOut(status) {
+    return status === 401 || status === 403;
+  }
+
+  /**
+   * Input: none.
+   * Output: none (it navigates).
+   * Action: replaces this page with login.html.
+   * Role: the single exit for an absent or expired session, so the sheet never sits in the
+   *       Back history behind the sign-in screen.
+   */
+  function leaveForSignIn() {
+    window.location.replace(SIGNED_OUT_PAGE);
+  }
+
+  /**
+   * Input: none.
+   * Output: nothing (it may navigate away).
+   * Action: probes the session once and sends a refused visitor to login.html.
+   * Role: entry point of the gate — typing this page's URL while signed out ends on the
+   *       sign-in screen instead of on a sheet that cannot be submitted.
+   */
+  async function guard() {
+    if (isSignedOut(await probeSession())) leaveForSignIn();
+  }
+
+  guard();
+})();
+</script>
+
+
+<script>
+/**
+ * ---------------------------------------------------------------------------
+ * Data contract
+ *   GET  https://api.kidsfunbank.ca/getuser -> { user_name, ... } for "Welcome, <user>"
+ *   POST https://api.kidsfunbank.ca/logout  -> clears the session_id cookie
+ *   (no session -> 401 "Not authenticated")
+ * The one thing this page reads is the query string:
+ *   ?type=<flow>   -> which update is being started (update-analysis, update-score, …)
+ * and the one thing it writes:
+ *   <flow>.html?company_name=<the name in the box>
+ * The session is the HttpOnly session_id cookie the API set at sign-in: that request
+ * carries it only with credentials: 'include', because the page and the API are different
+ * hosts (www vs api.kidsfunbank.ca).
+ * A flow is not validated against a list on purpose: the next page's name IS the flow, so a
+ * new flow needs a dashboard link and the page it points at — nothing here.
+ * ---------------------------------------------------------------------------
+ */
+const API_BASE = 'https://api.kidsfunbank.ca';
+const ENDPOINTS = {
+  user: '/getuser',
+  logout: '/logout'
+};
+const REQUEST_TIMEOUT_MS = 10000;
+const EMPTY = '\u2014';
+
+/** Page shown when the API says the session is missing or expired. */
+const SIGNED_OUT_PAGE = 'login.html';
+
+/** The query key that names the flow, and the one the next page is asked for. */
+const TYPE_PARAM = 'type';
+const NAME_PARAM = 'company_name';
+
+/**
+ * A flow arrives in a URL, so it has to be a plain slug: lowercase letters, digits and
+ * dashes. Anything else (?type=../../evil, ?type=javascript:…) is refused rather than
+ * turned into a page address this sheet would navigate to.
+ */
+const TYPE_PATTERN = /^[a-z0-9][a-z0-9-]{0,47}$/;
+
+/** The suffix every flow page is saved under (update-analysis -> update-analysis.html). */
+const PAGE_SUFFIX = '.html';
+
+/** How the two known flows are printed in the stamp; anything else is humanised. */
+const TYPE_LABELS = {
+  'update-analysis': 'Update analysis',
+  'update-score': 'Update score'
+};
+
+/** What the stamp and the tab say when ?type= is missing or unusable. */
+const DEFAULT_LABEL = 'Update a company';
+
+/** Every other page ends its <title> this way. */
+const TITLE_SUFFIX = ' \u00b7 Company desk';
+
+/**
+ * Input: none.
+ * Output: the flow named by ?type=, or '' when it is missing or not a plain slug.
+ * Action: reads the query string (URLSearchParams has already decoded it), lowercases it,
+ *         and tests it against TYPE_PATTERN.
+ * Role: the single place this page decides what it is updating — and the guard that keeps a
+ *       hand-written query string from becoming an address.
+ */
+function readType() {
+  let raw = '';
+  try {
+    raw = new URLSearchParams(window.location.search).get(TYPE_PARAM) || '';
+  } catch (error) {
+    return '';
+  }
+
+  const type = raw.trim().toLowerCase();
+  return TYPE_PATTERN.test(type) ? type : '';
+}
+
+/**
+ * Input: a validated flow slug.
+ * Output: the words the stamp and the tab print ("Update analysis").
+ * Action: looks the slug up in TYPE_LABELS, else turns "add-report" into "Add report" —
+ *         capitalising only the first word.
+ * Role: keeps the URL spelling and the human wording apart, so a flow with no entry in
+ *       TYPE_LABELS still reads like a sentence.
+ */
+function typeLabel(type) {
+  if (TYPE_LABELS[type]) return TYPE_LABELS[type];
+
+  const words = String(type || '').split('-').filter(Boolean);
+  if (!words.length) return DEFAULT_LABEL;
+
+  const first = words[0].charAt(0).toUpperCase() + words[0].slice(1);
+  return [first].concat(words.slice(1)).join(' ');
+}
+
+/**
+ * Input: a validated flow slug and the company name typed into the box.
+ * Output: the address Next opens, e.g. "update-analysis.html?company_name=Tencent".
+ * Action: joins the slug with PAGE_SUFFIX and the query key, encoding the name so spaces,
+ *         "&" and non-Latin characters survive the trip.
+ * Role: the only place the destination is assembled — this page knows nothing about what
+ *       update-analysis.html or update-score.html then do with the name.
+ */
+function nextHref(type, name) {
+  return type + PAGE_SUFFIX + '?' + NAME_PARAM + '=' + encodeURIComponent(name);
+}
+
+/**
+ * Input: whatever the name box holds.
+ * Output: the company name as it should travel: single spaces, no ends.
+ * Action: stringifies, collapses runs of whitespace, trims.
+ * Role: a name typed with a stray double space or a trailing blank still finds its company.
+ */
+function cleanName(value) {
+  return String(value === null || value === undefined ? '' : value).replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Input: an API path such as '/getuser'.
+ * Output: the parsed JSON body.
+ * Action: GETs API_BASE + path with the session cookie, no caching and a 10s timeout;
+ *         throws an Error carrying .status (0 for a timeout or an unreachable API) when the
+ *         request fails or the response is not ok.
+ * Role: the one reader the welcome line uses, so "signed out" is a number and everything
+ *       else is a quiet placeholder.
+ */
+async function fetchJson(path) {
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS) : null;
+
+  try {
+    const response = await fetch(API_BASE + path, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include',
+      signal: controller ? controller.signal : undefined
+    });
+
+    if (!response.ok) {
+      const error = new Error('Request failed with status ' + response.status);
+      error.status = response.status;
+      throw error;
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error && error.name === 'AbortError') {
+      const timeout = new Error('The request timed out');
+      timeout.status = 0;
+      throw timeout;
+    }
+    if (typeof error.status !== 'number') error.status = 0;
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * Input: the raw JSON payload from /getuser.
+ * Output: the visitor's name, or '' when the payload carries none.
+ * Action: reads the first field that holds a non-empty string (user_name is what the API
+ *         sends; the others are cheap fallbacks), falling back to the payload itself when it
+ *         is a plain string.
+ * Role: one place that decides what the welcome line prints.
+ */
+function toUsername(payload) {
+  if (typeof payload === 'string') return payload.trim();
+  if (!payload || typeof payload !== 'object') return '';
+
+  for (const key of ['user_name', 'username', 'name', 'user']) {
+    const value = payload[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+
+  return '';
+}
+
+/**
+ * Input: an error raised by fetchJson().
+ * Output: true when the API refused the request for lack of a session (401/403).
+ * Action: compares error.status with the two refusal codes.
+ * Role: separates "sign in again" from "the API is having a bad day".
+ */
+function isSignedOut(error) {
+  return Boolean(error) && (error.status === 401 || error.status === 403);
+}
+
+/**
+ * Input: none.
+ * Output: none (it navigates).
+ * Action: replaces the page with login.html.
+ * Role: the single exit for an expired session discovered while reading the welcome line.
+ */
+function leaveForSignIn() {
+  window.location.replace(SIGNED_OUT_PAGE);
+}
+
+/**
+ * Input: a message, and "error" when it should be read as a problem.
+ * Output: none.
+ * Action: writes the message into the line under the box (a polite live region, so a screen
+ *         reader announces it) and tags its state.
+ * Role: the page's only voice besides the heading — it explains what to type, or why the
+ *       sheet has nowhere to go.
+ */
+function showHint(message, state) {
+  const hint = document.getElementById('ask-hint');
+  if (!hint) return;
+
+  hint.textContent = message;
+  if (state) {
+    hint.dataset.state = state;
+  } else {
+    delete hint.dataset.state;
+  }
+}
+
+/**
+ * Input: none.
+ * Output: none.
+ * Action: GETs /getuser and writes its user_name into the welcome line as "Welcome, <user>";
+ *         sends the visitor back to login.html when the API answers 401/403 (no session), and
+ *         shows an em-dash placeholder with an explanatory tooltip when the API cannot be
+ *         reached at all.
+ * Role: personalizes the top bar — the same line every screen in the app carries.
+ */
+async function loadUser() {
+  const name = document.getElementById('username');
+  if (!name) return;
+
+  try {
+    const user = toUsername(await fetchJson(ENDPOINTS.user));
+    name.textContent = user || EMPTY;
+    name.dataset.state = user ? 'ready' : 'empty';
+  } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+
+    name.textContent = EMPTY;
+    name.dataset.state = 'offline';
+    name.title = 'Could not reach ' + API_BASE + ENDPOINTS.user;
+  }
+}
+
+/**
+ * Input: none (bound to the #signout-button click).
+ * Output: none.
+ * Action: POSTs /logout with credentials: 'include' so the API can expire the HttpOnly
+ *         session_id cookie (JavaScript cannot delete it itself), shows a busy label
+ *         meanwhile, then navigates to login.html whatever the response was.
+ * Role: the only way out, since the cookie is invisible to JavaScript.
+ */
+async function signOut() {
+  const button = document.getElementById('signout-button');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Signing out\u2026';
+  }
+
+  try {
+    await fetch(API_BASE + ENDPOINTS.logout, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include'
+    });
+  } catch (error) {
+    // Offline or blocked: the visitor still leaves, and the next request will simply come
+    // back 401 and route through leaveForSignIn().
+  } finally {
+    window.location.replace(SIGNED_OUT_PAGE);
+  }
+}
+
+/**
+ * Input: none (reads ?type= itself).
+ * Output: none.
+ * Action: names the flow in the stamp pill and the tab title, and tells the user under the
+ *         box which page Next will open; when ?type= is missing or not a plain slug it also
+ *         takes the sheet out of service (box and Next disabled) and says why.
+ * Role: the page's opening move — after it, the sheet either knows where it is going or
+ *       refuses to pretend it does.
+ */
+function applyType() {
+  const type = readType();
+  const stamp = document.getElementById('type-label');
+  const box = document.getElementById('company-name');
+  const next = document.getElementById('next-button');
+  const label = type ? typeLabel(type) : DEFAULT_LABEL;
+
+  if (stamp) stamp.textContent = label;
+  document.title = label + TITLE_SUFFIX;
+
+  if (!type) {
+    if (box) {
+      box.disabled = true;
+      box.placeholder = 'No update chosen';
+    }
+    if (next) next.disabled = true;
+    showHint('This page was opened without a usable update type, so there is nowhere to go ' +
+      '\u2014 start from Update analysis or Update score on the dashboard.', 'error');
+    return;
+  }
+
+  showHint('Then press Next to open ' + type + PAGE_SUFFIX + '.', 'info');
+}
+
+/**
+ * Input: the form's submit event (a click on Next, or Enter in the box).
+ * Output: none (it either navigates or explains itself).
+ * Action: keeps the browser from posting the form, reads the flow and the cleaned name, and
+ *         makes them into <type>.html?company_name=<name> with location.assign() — so Back
+ *         returns to this filled-in box. A blank name, or no usable type, is answered in the
+ *         line under the box instead of by leaving the page.
+ * Role: the one transition this page has, and the reason it exists at all.
+ */
+function goNext(event) {
+  if (event) event.preventDefault();
+
+  const type = readType();
+  const box = document.getElementById('company-name');
+  const name = cleanName(box ? box.value : '');
+
+  if (!type) {
+    showHint('This page was opened without a usable update type, so there is nowhere to go ' +
+      '\u2014 start from Update analysis or Update score on the dashboard.', 'error');
+    return;
+  }
+
+  if (!name) {
+    showHint('Type the name of the company you want to update first.', 'error');
+    if (box) box.focus();
+    return;
+  }
+
+  window.location.assign(nextHref(type, name));
+}
+
+/**
+ * Input: none (the script sits at the end of <body>, so the DOM already exists).
+ * Output: none.
+ * Action: applies ?type=, starts the username read, wires the form's submit and the sign-out
+ *         button, and puts the caret in the name box when the sheet is usable.
+ * Role: single entry point for the page.
+ */
+function init() {
+  applyType();
+  loadUser();
+
+  const form = document.getElementById('ask-form');
+  if (form) form.addEventListener('submit', goNext);
+
+  const signOutButton = document.getElementById('signout-button');
+  if (signOutButton) signOutButton.addEventListener('click', signOut);
+
+  const box = document.getElementById('company-name');
+  if (box && !box.disabled) box.focus();
+}
+
+init();
+</script>
+</body>
+</html>
