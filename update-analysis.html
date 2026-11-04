@@ -315,17 +315,21 @@
   }
 
   /* The strip's nine figures are read-only, so they are drawn as values printed on the sheet: no
-     fill of their own (the band's own background shows through, so a box reads as part of the
-     page rather than as something to fill in), a border that never lights up under the pointer,
-     and no caret. They stay selectable, so a figure can still be copied out of the box, and they
-     stay in the form, so buildSubmission() posts them. */
+     fill and no frame — only the band behind them — and no caret. The 1px border stays in the box
+     model but is transparent, so a locked box occupies exactly the space an editable one would
+     and the strip's columns cannot shift; the horizontal padding goes to zero so each figure
+     starts on the same left edge as its label. The box is still in the tab order, so focus draws
+     a ring for the keyboard, and its text is still selectable, so a figure can be copied out —
+     and it is still a form control, so buildSubmission() posts it. */
   .field input[readonly] {
-    border-color: #e3e9f4;
+    padding-left: 0;
+    padding-right: 0;
+    border-color: transparent;
     background: transparent;
     cursor: default;
   }
 
-  .field input[readonly]:hover { border-color: #e3e9f4; }
+  .field input[readonly]:hover { border-color: transparent; }
 
   .field input[readonly]:focus {
     border-color: var(--focus);
