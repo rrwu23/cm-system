@@ -314,13 +314,14 @@
     letter-spacing: .01em;
   }
 
-  /* The strip's nine figures are read-only, so they are drawn as values, not as fields: a
-     quieter fill, a border that never lights up under the pointer, and no caret. They stay
-     selectable, so a figure can still be copied out of the box, and they stay in the form, so
-     buildSubmission() posts them. */
+  /* The strip's nine figures are read-only, so they are drawn as values printed on the sheet: no
+     fill of their own (the band's own background shows through, so a box reads as part of the
+     page rather than as something to fill in), a border that never lights up under the pointer,
+     and no caret. They stay selectable, so a figure can still be copied out of the box, and they
+     stay in the form, so buildSubmission() posts them. */
   .field input[readonly] {
     border-color: #e3e9f4;
-    background: #f3f6fc;
+    background: transparent;
     cursor: default;
   }
 
