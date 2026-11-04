@@ -1,0 +1,1838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Update analysis &middot; Company desk</title>
+<style>
+  /* ---------- Design tokens: the same amber + slate-blue pair every page uses ---------- */
+  :root {
+    --bg: #eef2f8;
+    --surface: #ffffff;
+    --ink: #17233b;
+    --ink-soft: #5c6a84;
+    --ink-faint: #8d99ae;
+    --line: #dde4ef;
+    --input-line: #d5dfee;
+    --amber: #ffd24a;
+    --amber-strong: #e5a900;
+    --amber-soft: #fff5cc;
+    --amber-ink: #3a2c00;
+    --amber-line: #f0d47a;
+    --blue-soft: #e4edfa;
+    --blue-line: #c2d4ee;
+    --blue-ink: #21456f;
+    --focus: #2f6fed;
+    --danger: #a3312d;
+    --done: #1d6b46;
+    --warn: #9a5b00;
+    --radius: 14px;
+    --shadow-sm: 0 1px 2px rgba(23, 35, 59, .06);
+    --shadow-md: 0 14px 32px -24px rgba(23, 35, 59, .55);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100%;
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.4;
+    background:
+      radial-gradient(900px 420px at 8% -200px, rgba(255, 210, 74, .28) 0%, rgba(255, 210, 74, 0) 70%),
+      radial-gradient(1100px 560px at 50% -260px, #ffffff 0%, rgba(255, 255, 255, 0) 72%),
+      var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* One line of text for a screen reader only */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .shell {
+    width: min(1100px, 100% - 40px);
+    margin-inline: auto;
+    padding: 24px 0 56px;
+  }
+
+  /* ---------- The board: one white panel holding the header band and the whole sheet ----------
+     The sketch draws every section inside a single white card that starts with a pale blue
+     header strip, so the page is that card and nothing else. */
+  .board {
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* ---------- Header band: "Welcome, <user>" + page stamp + Sign out ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--blue-line);
+    border-radius: 19px 19px 0 0;
+    background: var(--blue-soft);
+  }
+
+  .welcome {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    font-size: 15px;
+  }
+
+  .welcome .mark {
+    flex: none;
+    width: 30px; height: 30px;
+    border-radius: 9px;
+    background: linear-gradient(140deg, var(--amber) 0%, var(--amber-strong) 100%);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .welcome .label { color: var(--ink-soft); font-weight: 500; }
+
+  .welcome .name {
+    font-weight: 700;
+    letter-spacing: -.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .welcome .name[data-state="offline"],
+  .welcome .name[data-state="empty"] { color: var(--ink-soft); }
+
+  .topbar-right {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* The page stamp: the same dashed pill every screen wears */
+  .stamp {
+    flex: none;
+    padding: 6px 12px;
+    border: 1px dashed var(--blue-line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .72);
+    color: var(--ink-faint);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  /* Sign out: POSTs /logout so the API clears the HttpOnly session_id cookie */
+  .signout {
+    padding: 7px 14px;
+    border: 1px solid var(--blue-line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease, opacity .15s ease;
+  }
+
+  .signout:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  .signout:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .signout[disabled] { opacity: .6; cursor: progress; }
+
+  /* ---------- Breadcrumb back to the dashboard ---------- */
+  .crumbs { padding: 12px 18px 0; }
+
+  .home-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 13px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink-soft);
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-decoration: none;
+    transition: color .15s ease, border-color .15s ease;
+  }
+
+  .home-link:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  .home-link:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  /* ---------- The sheet itself ---------- */
+  .sheet { padding: 14px 18px 18px; }
+
+  /* The company/status line: which record is on the sheet, or why it could not be read */
+  .sheet-note {
+    margin: 0 0 12px;
+    color: var(--ink-soft);
+    font-size: 13px;
+  }
+
+  .sheet-note[data-state="ready"] { color: var(--ink); font-weight: 600; }
+  .sheet-note[data-state="error"] { color: var(--danger); font-weight: 600; }
+
+  /* ---------- One section of the sheet: a thin frame, an amber tick beside its heading ---------- */
+  .band {
+    margin-top: 12px;
+    padding: 14px 16px 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+  }
+
+  .band-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px 14px;
+    margin-bottom: 12px;
+  }
+
+  /* The small amber bar the sketch draws at the left of every heading */
+  .band-title {
+    position: relative;
+    margin: 0;
+    padding-left: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -.005em;
+  }
+
+  .band-title::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 2px;
+    bottom: 2px;
+    width: 3px;
+    border-radius: 2px;
+    background: var(--amber-strong);
+  }
+
+  .band-note {
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: 12px;
+  }
+
+  /* ---------- The summary strip: rank pill, then the record's own figures in column pairs ---------
+     Six columns: the rank cell spans both rows, and the nine figures fill the rest column by
+     column — Company name / symbol, Moat score / latest price, cyclical score / WL-ratio(base),
+     Anti-fragile score / WL-ratio(optimistic), growth score — exactly the pairing the sketch has. */
+  .summary {
+    display: grid;
+    grid-template-columns: auto;
+    grid-template-rows: auto auto;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 10px 16px;
+    align-items: start;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .field-label {
+    color: var(--ink-soft);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .field-label .field-note {
+    margin-left: 4px;
+    color: var(--ink-faint);
+    font-weight: 500;
+    font-size: 11px;
+  }
+
+  .field input,
+  .field textarea {
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid var(--input-line);
+    border-radius: 9px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 14px;
+    transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+  }
+
+  .field input:hover,
+  .field textarea:hover { border-color: var(--blue-line); }
+
+  .field input:focus,
+  .field textarea:focus {
+    outline: none;
+    border-color: var(--focus);
+    box-shadow: 0 0 0 3px rgba(47, 111, 237, .18);
+  }
+
+  .field input::placeholder,
+  .field textarea::placeholder { color: var(--ink-faint); }
+
+  /* A number box reads as a figure, not as prose */
+  .field input[type="number"] {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .01em;
+  }
+
+  /* ---------- Rank: an amber pill, and still a list, so a grade can be corrected ---------- */
+  .rank-cell {
+    grid-row: 1 / span 2;
+    grid-column: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .rank-pill {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 104px;
+    min-height: 86px;
+    border-radius: 999px;
+    background: linear-gradient(150deg, var(--amber) 0%, var(--amber-strong) 100%);
+    box-shadow: 0 14px 26px -18px rgba(229, 169, 0, .95);
+    transition: filter .15s ease, box-shadow .15s ease;
+  }
+
+  .rank-pill:hover { filter: brightness(1.03); }
+
+  /* The select fills the pill and is the pill: no border, no fill of its own, one big letter */
+  .rank-pill select {
+    width: 100%;
+    min-height: 86px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--amber-ink);
+    font: inherit;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-align: center;
+    text-align-last: center;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+  }
+
+  .rank-pill select:focus-visible {
+    outline: 3px solid rgba(47, 111, 237, .45);
+    outline-offset: 3px;
+  }
+
+  /* A quiet chevron, so the pill reads as a list without shouting over the letter */
+  .rank-pill::after {
+    content: "\25BE";
+    position: absolute;
+    right: 12px;
+    bottom: 10px;
+    color: var(--amber-ink);
+    font-size: 11px;
+    opacity: .55;
+    pointer-events: none;
+  }
+
+  .rank-pill[data-state="empty"] {
+    background: #f1f4fa;
+    box-shadow: none;
+  }
+
+  .rank-pill[data-state="empty"] select { color: var(--ink-faint); }
+
+  /* ---------- Report grids: two columns for the analysis sections, three for the extras ---------- */
+  .grid {
+    display: grid;
+    gap: 14px 18px;
+  }
+
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .span-2 { grid-column: span 2; }
+
+  /* ---------- An uploaded .html report: the dashed card is one big file picker ---------- */
+  .upload {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: 92px;
+    padding: 16px;
+    border: 1px dashed #cbd7e8;
+    border-radius: 10px;
+    background: var(--surface);
+    transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+  }
+
+  /* The real input covers the card, so a click anywhere opens the file picker */
+  .field .upload-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .upload-face {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    pointer-events: none;
+  }
+
+  .upload-badge {
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--amber-soft);
+    color: var(--amber-ink);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+  }
+
+  .upload-name {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--ink-faint);
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .upload:hover {
+    border-color: var(--amber-line);
+    background: #fffdf5;
+  }
+
+  .upload:focus-within {
+    border-color: var(--amber-strong);
+    box-shadow: 0 0 0 4px rgba(255, 210, 74, .28);
+  }
+
+  /* A picked .html file turns the card solid amber and shows the file name */
+  .upload[data-state="ready"] {
+    border-style: solid;
+    border-color: var(--amber-line);
+    background: var(--amber-soft);
+  }
+
+  .upload[data-state="ready"] .upload-name {
+    color: var(--amber-ink);
+    font-weight: 600;
+  }
+
+  .upload[data-state="error"] {
+    border-style: solid;
+    border-color: #d9534f;
+    background: #fff6f5;
+  }
+
+  .upload[data-state="error"] .upload-name {
+    color: var(--danger);
+    font-weight: 600;
+  }
+
+  /* The line under a card: "No file selected", the size it carries, or why it was refused */
+  .field-hint {
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: 12px;
+  }
+
+  .field-hint[data-state="ready"] { color: var(--amber-ink); }
+
+  .field-hint[data-state="error"] {
+    color: var(--danger);
+    font-weight: 600;
+  }
+  /* ---------- The memo: the one free-text box on the sheet ---------- */
+  .memo-field textarea {
+    min-height: 132px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+
+  /* ---------- Sticky action bar: Reset + amber Submit, with the answer beside them ---------- */
+  .sheet-footer {
+    position: sticky;
+    bottom: 16px;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 18px;
+    margin-top: 14px;
+    padding: 14px 18px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, .93);
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(6px);
+  }
+
+  .foot-hint {
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: 13px;
+  }
+
+  .foot-hint[data-state="done"] { color: var(--done); }
+  .foot-hint[data-state="warn"] { color: var(--warn); }
+
+  .foot-hint[data-state="error"] {
+    color: var(--danger);
+    font-weight: 600;
+  }
+
+  .buttons {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 46px;
+    padding: 0 22px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .12s ease;
+  }
+
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .btn-amber {
+    background: linear-gradient(150deg, var(--amber) 0%, var(--amber-strong) 100%);
+    color: var(--amber-ink);
+    box-shadow: 0 12px 24px -16px rgba(229, 169, 0, .95);
+  }
+
+  .btn-amber[disabled] {
+    background: #e7e9ee;
+    color: var(--ink-faint);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  .btn-soft {
+    border-color: var(--blue-line);
+    background: var(--blue-soft);
+    color: var(--blue-ink);
+  }
+
+  .btn-soft:hover { background: #d8e5f8; }
+
+  /* ---------- Responsive: the strip folds from column pairs to rows, then to one column ---------- */
+  @media (max-width: 1000px) {
+    .summary {
+      grid-auto-flow: row;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-rows: none;
+    }
+    .rank-cell { grid-row: auto; grid-column: auto; }
+  }
+
+  @media (max-width: 760px) {
+    .grid-2 { grid-template-columns: minmax(0, 1fr); }
+    .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .span-2 { grid-column: auto; }
+    .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 560px) {
+    .shell { width: calc(100% - 24px); padding-top: 16px; }
+    .topbar {
+      flex-wrap: wrap;
+      row-gap: 10px;
+      padding: 12px 14px;
+    }
+    .topbar-right { width: 100%; justify-content: space-between; }
+    .stamp { font-size: 10px; letter-spacing: .08em; }
+    .crumbs { padding: 10px 14px 0; }
+    .sheet { padding: 12px 14px 14px; }
+    .band { padding: 12px 12px 14px; }
+    .summary, .grid-3 { grid-template-columns: minmax(0, 1fr); }
+    .rank-pill { width: 96px; min-height: 72px; }
+    .rank-pill select { min-height: 72px; font-size: 26px; }
+    .upload { min-height: 84px; padding: 14px; }
+    .sheet-footer { padding: 12px; }
+    .buttons { width: 100%; }
+    .buttons .btn { flex: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <div class="board">
+
+    <!-- Header band mirrors every other page in the app: welcome, stamp, Sign out -->
+    <header class="topbar">
+      <div class="welcome">
+        <span class="mark" aria-hidden="true"></span>
+        <span class="label">Welcome,</span>
+        <span class="name" id="username" data-state="loading">&hellip;</span>
+      </div>
+      <div class="topbar-right">
+        <span class="stamp">Analysis update</span>
+        <button class="signout" id="signout-button" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a class="home-link" href="home.html">&larr; Back to dashboard</a>
+    </nav>
+
+    <!--
+      The sheet. Absolute API URL, not "/update_analysis": this page is served by static
+      hosting, which answers 405 to any POST on a static route, while the API lives on its
+      own host. The script below intercepts the submit and reports the answer in the footer;
+      this action= / method= / enctype= trio is the no-JavaScript fallback.
+      Every part is named exactly as the column the API serves it as, so the payload needs no
+      renaming layer: company_name, symbol, rank, moat_score, current_price (labelled
+      "Latest price" here), cyclical_score, wl_base (labelled "WL-ratio (base)"),
+      anti_fragile_score, wl_optimistic (labelled "WL-ratio (optimistic)"), growth_score, the
+      thirteen section names, and memo. There is no `date` part on purpose — the row is dated
+      by the server, the same rule /addcompany follows. A file box left empty is left out of
+      the request entirely, so the API keeps the stored document for that section.
+    -->
+    <form class="sheet" id="update-form" autocomplete="off"
+          action="https://api.kidsfunbank.ca/update_analysis" method="post"
+          enctype="multipart/form-data">
+
+      <p class="sheet-note" id="sheet-note" data-state="loading" role="status"
+         aria-live="polite">Reading the company on file&hellip;</p>
+
+      <!--
+        The summary strip. The grid fills it column by column, so the DOM order is the reading
+        order down each pair: Company name / symbol, Moat score / latest price,
+        cyclical score / WL-ratio(base), Anti-fragile score / WL-ratio(optimistic), growth score,
+        with the rank pill standing beside them for both rows.
+      -->
+      <section class="band band-summary" aria-label="Company being updated">
+        <div class="summary">
+
+          <div class="field rank-cell">
+            <label class="field-label" for="rank">Rank</label>
+            <span class="rank-pill" id="rank-pill" data-state="empty">
+              <select id="rank" name="rank" aria-label="Rank, A to F" title="Rank, A to F">
+                <option value="">&mdash;</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="D">D</option>
+                <option value="E">E</option>
+                <option value="F">F</option>
+              </select>
+            </span>
+          </div>
+
+          <label class="field">
+            <span class="field-label">Company name</span>
+            <input type="text" name="company_name" maxlength="300" required
+                   autocomplete="organization" spellcheck="false">
+          </label>
+
+          <label class="field">
+            <span class="field-label">symbol</span>
+            <input type="text" name="symbol" maxlength="32" required spellcheck="false">
+          </label>
+
+          <label class="field">
+            <span class="field-label">Moat score</span>
+            <input type="number" name="moat_score" min="0" max="100" step="1"
+                   inputmode="numeric" placeholder="0&ndash;100">
+          </label>
+
+          <label class="field">
+            <span class="field-label">latest_price</span>
+            <input type="number" name="current_price" min="0" step="any"
+                   inputmode="decimal" placeholder="e.g. 397.20">
+          </label>
+
+          <label class="field">
+            <span class="field-label">cyclical score</span>
+            <input type="number" name="cyclical_score" min="0" max="100" step="1"
+                   inputmode="numeric" placeholder="0&ndash;100">
+          </label>
+
+          <label class="field">
+            <span class="field-label">WL-ratio(base)</span>
+            <input type="number" name="wl_base" min="0" step="0.01"
+                   inputmode="decimal" placeholder="e.g. 1.73">
+          </label>
+
+          <label class="field">
+            <span class="field-label">Anti-fragile score</span>
+            <input type="number" name="anti_fragile_score" min="0" max="100" step="1"
+                   inputmode="numeric" placeholder="0&ndash;100">
+          </label>
+
+          <label class="field">
+            <span class="field-label">WL-ratio(optimistic)</span>
+            <input type="number" name="wl_optimistic" min="0" step="0.01"
+                   inputmode="decimal" placeholder="e.g. 3.44">
+          </label>
+
+          <label class="field">
+            <span class="field-label">growth score</span>
+            <input type="number" name="growth_score" min="0" max="100" step="1"
+                   inputmode="numeric" placeholder="0&ndash;100">
+          </label>
+
+        </div>
+      </section>
+
+      <!-- Company profile: the one report the sketch gives a band of its own -->
+      <section class="band" aria-labelledby="profile-title">
+        <div class="band-head">
+          <h2 class="band-title" id="profile-title">Company profile</h2>
+          <p class="band-note">when uploaded</p>
+        </div>
+        <div class="field">
+          <label class="field-label sr-only" for="file-company_profile">Company profile</label>
+          <span class="upload" data-upload="company_profile">
+            <input class="upload-input" id="file-company_profile" type="file"
+                   name="company_profile" accept=".html,text/html"
+                   aria-describedby="file-meta-company_profile">
+            <span class="upload-face" aria-hidden="true">
+              <span class="upload-badge">HTML</span>
+              <span class="upload-name" data-upload-name>Choose a .html file</span>
+            </span>
+          </span>
+          <span class="field-hint upload-meta" id="file-meta-company_profile"
+                data-upload-meta="company_profile" aria-live="polite">No file selected</span>
+        </div>
+      </section>
+
+      <!-- Analysis: one report per heading, eight in two columns and the ninth across both -->
+      <section class="band" aria-labelledby="analysis-title">
+        <div class="band-head">
+          <h2 class="band-title" id="analysis-title">Analysis</h2>
+          <p class="band-note">One .html report per heading &mdash; click a box to upload.</p>
+        </div>
+        <div class="grid grid-2">
+
+          <div class="field">
+            <label class="field-label" for="file-industry_map">Industry profile</label>
+            <span class="upload" data-upload="industry_map">
+              <input class="upload-input" id="file-industry_map" type="file"
+                     name="industry_map" accept=".html,text/html"
+                     aria-describedby="file-meta-industry_map">
+              <span class="upload-face" aria-hidden="true">
+                <span class="upload-badge">HTML</span>
+                <span class="upload-name" data-upload-name>Choose a .html file</span>
+              </span>
+            </span>
+            <span class="field-hint upload-meta" id="file-meta-industry_map"
+                  data-upload-meta="industry_map" aria-live="polite">No file selected</span>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="file-company_position">Company position</label>
+            <span class="upload" data-upload="company_position">
+              <input class="upload-input" id="file-company_position" type="file"
+                     name="company_position" accept=".html,text/html"
+                     aria-describedby="file-meta-company_position">
+              <span class="upload-face" aria-hidden="true">
+                <span class="upload-badge">HTML</span>
+                <span class="upload-name" data-upload-name>Choose a .html file</span>
+              </span>
+            </span>
+            <span class="field-hint upload-meta" id="file-meta-company_position"
+                  data-upload-meta="company_position" aria-live="polite">No file selected</span>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="file-financial_quality">Financial quality</label>
+            <span class="upload" data-upload="financial_quality">
+              <input class="upload-input" id="file-financial_quality" type="file"
+                     name="financial_quality" accept=".html,text/html"
+                     aria-describedby="file-meta-financial_quality">
+              <span class="upload-face" aria-hidden="true">
+                <span class="upload-badge">HTML</span>
+                <span class="upload-name" data-upload-name>Choose a .html file</span>
+              </span>
+            </span>
+            <span class="field-hint upload-meta" id="file-meta-financial_quality"
+                  data-upload-meta="financial_quality" aria-live="polite">No file selected</span>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="file-strategy_vision">Strategy &amp; vision</label>
+            <span class="upload" data-upload="strategy_vision">
+              <input class="upload-input" id="file-strategy_vision" type="file"
+                     name="strategy_vision" accept=".html,text/html"
+                     aria-describedby="file-meta-strategy_vision">
+              <span class="upload-face" aria-hidden="true">
+                <span class="upload-badge">HTML</span>
+                <span class="upload-name" data-upload-name>Choose a .html file</span>
+              </span>
+            </span>
+            <span class="field-hint upload-meta" id="file-meta-strategy_vision"
+                  data-upload-meta="strategy_vision" aria-live="polite">No file selected</span>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="file-moat_analysis">Moat analysis</label>
+            <span class="upload" data-upload="moat_analysis">
+              <input class="upload-input" id="file-moat_analysis" type="file"
+                     name="moat_analysis" accept=".html,text/html"
+                     aria-describedby="file-meta-moat_analysis">
+              <span class="upload-face" aria-hidden="true">
+                <span class="upload-badge">HTML</span>
+                <span class="upload-name" data-upload-name>Choose a .html file</span>
+              </span>
+            </span>
+            <span class="field-hint upload-meta" id="file-meta-moat_analysis"
+                  data-upload-meta="moat_analysis" aria-live="polite">No file selected</span>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="file-cyclical_analysis">Cyclical analysis</label>
+            <span class="upload" data-upload="cyclical_analysis">
+              <input class="upload-input" id="file-cyclical_analysis" type="file"
+                     name="cyclical_analysis" accept=".html,text/html"
+                     aria-describedby="file-meta-cyclical_analysis">
+              <span class="upload-face" aria-hidden="true">
+                <span class="upload-badge">HTML</span>
+                <span class="upload-name" data-upload-name>Choose a .html file</span>
+              </span>
+            </span>
+            <span class="field-hint upload-meta" id="file-meta-cyclical_analysis"
+                  data-upload-meta="cyclical_analysis" aria-live="polite">No file selected</span>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="file-anti_fragile_analysis">Anti-fragile analysis</label>
+            <span class="upload" data-upload="anti_fragile_analysis">
+              <input class="upload-input" id="file-anti_fragile_analysis" type="file"
+                     name="anti_fragile_analysis" accept=".html,text/html"
+                     aria-describedby="file-meta-anti_fragile_analysis">
+              <span class="upload-face" aria-hidden="true">
+                <span class="upload-badge">HTML</span>
+                <span class="upload-name" data-upload-name>Choose a .html file</span>
+              </span>
+            </span>
+            <span class="field-hint upload-meta" id="file-meta-anti_fragile_analysis"
+                  data-upload-meta="anti_fragile_analysis" aria-live="polite">No file selected</span>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="file-growth_momentum_analysis">Growth &amp; momentum analysis</label>
+            <span class="upload" data-upload="growth_momentum_analysis">
+              <input class="upload-input" id="file-growth_momentum_analysis" type="file"
+                     name="growth_momentum_analysis" accept=".html,text/html"
+                     aria-describedby="file-meta-growth_momentum_analysis">
+              <span class="upload-face" aria-hidden="true">
+                <span class="upload-badge">HTML</span>
+                <span class="upload-name" data-upload-name>Choose a .html file</span>
+              </span>
+            </span>
+            <span class="field-hint upload-meta" id="file-meta-growth_momentum_analysis"
+                  data-upload-meta="growth_momentum_analysis" aria-live="polite">No file selected</span>
+          </div>
+
+          <!-- The ninth analysis runs the full width of the band, as on the sketch -->
+          <div class="field span-2">
+            <label class="field-label" for="file-scenario_stress_analysis">Scenario &amp; stress analysis</label>
+            <span class="upload" data-upload="scenario_stress_analysis">
+              <input class="upload-input" id="file-scenario_stress_analysis" type="file"
+                     name="scenario_stress_analysis" accept=".html,text/html"
+                     aria-describedby="file-meta-scenario_stress_analysis">
+              <span class="upload-face" aria-hidden="true">
+                <span class="upload-badge">HTML</span>
+                <span class="upload-name" data-upload-name>Choose a .html file</span>
+              </span>
+            </span>
+            <span class="field-hint upload-meta" id="file-meta-scenario_stress_analysis"
+                  data-upload-meta="scenario_stress_analysis" aria-live="polite">No file selected</span>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Additional analysis: three optional reports, one per extra angle -->
+      <section class="band" aria-labelledby="extra-title">
+        <div class="band-head">
+          <h2 class="band-title" id="extra-title">Additional analysis</h2>
+          <p class="band-note">Optional &mdash; one extra .html report per angle.</p>
+        </div>
+        <div class="grid grid-3">
+
+          <div class="field">
+            <label class="field-label" for="file-additional_analysis_1">
+              Additional analysis 1 <span class="field-note">optional</span>
+            </label>
+            <span class="upload" data-upload="additional_analysis_1">
+              <input class="upload-input" id="file-additional_analysis_1" type="file"
+                     name="additional_analysis_1" accept=".html,text/html"
+                     aria-describedby="file-meta-additional_analysis_1">
+              <span class="upload-face" aria-hidden="true">
+                <span class="upload-badge">HTML</span>
+                <span class="upload-name" data-upload-name>Choose a .html file</span>
+              </span>
+            </span>
+            <span class="field-hint upload-meta" id="file-meta-additional_analysis_1"
+                  data-upload-meta="additional_analysis_1" aria-live="polite">No file selected</span>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="file-additional_analysis_2">
+              Additional analysis 2 <span class="field-note">optional</span>
+            </label>
+            <span class="upload" data-upload="additional_analysis_2">
+              <input class="upload-input" id="file-additional_analysis_2" type="file"
+                     name="additional_analysis_2" accept=".html,text/html"
+                     aria-describedby="file-meta-additional_analysis_2">
+              <span class="upload-face" aria-hidden="true">
+                <span class="upload-badge">HTML</span>
+                <span class="upload-name" data-upload-name>Choose a .html file</span>
+              </span>
+            </span>
+            <span class="field-hint upload-meta" id="file-meta-additional_analysis_2"
+                  data-upload-meta="additional_analysis_2" aria-live="polite">No file selected</span>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="file-additional_analysis_3">
+              Additional analysis 3 <span class="field-note">optional</span>
+            </label>
+            <span class="upload" data-upload="additional_analysis_3">
+              <input class="upload-input" id="file-additional_analysis_3" type="file"
+                     name="additional_analysis_3" accept=".html,text/html"
+                     aria-describedby="file-meta-additional_analysis_3">
+              <span class="upload-face" aria-hidden="true">
+                <span class="upload-badge">HTML</span>
+                <span class="upload-name" data-upload-name>Choose a .html file</span>
+              </span>
+            </span>
+            <span class="field-hint upload-meta" id="file-meta-additional_analysis_3"
+                  data-upload-meta="additional_analysis_3" aria-live="polite">No file selected</span>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- The memo: the one part of the sheet that is written rather than attached -->
+      <section class="band" aria-labelledby="memo-title">
+        <div class="band-head">
+          <h2 class="band-title" id="memo-title">Memo</h2>
+          <p class="band-note">Sent with the sheet as the <em>memo</em> part.</p>
+        </div>
+        <div class="field memo-field">
+          <label class="field-label" for="memo">memo</label>
+          <textarea id="memo" name="memo" rows="6" maxlength="4000"
+                    placeholder="What changed in this update &mdash; the reading behind the new scores, and anything the next review should know."></textarea>
+        </div>
+      </section>
+
+      <!-- Sticky action bar: what Submit will send on the left, Reset + amber Submit on the right -->
+      <div class="sheet-footer">
+        <p class="foot-hint" id="submit-hint" role="status" aria-live="polite">
+          Submit posts the figures above, the reports you attach and the memo to /update_analysis.
+        </p>
+        <div class="buttons">
+          <button class="btn btn-soft" type="reset">Reset</button>
+          <button class="btn btn-amber" id="submit-button" type="submit">Submit</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</main>
+
+<!--
+  Session gate — runs before the sheet's own script.
+  A static page can be opened by its URL without ever passing the sign-in screen, so every
+  screen in this app probes the API first and leaves for login.html when it says 401/403.
+  GET /getuser is the only honest check: the session_id cookie is HttpOnly and scoped to the
+  API host, so document.cookie can never see it (the same probe index.html, login.html,
+  home.html, viewcompany.html, addcompany.html, middle.html and portfolioanalytics.html use).
+    200                         -> stay and let the sheet read the company
+    401 / 403                   -> login.html (missing or expired session)
+    5xx / timeout / unreachable -> stay; the sheet says what it could not read
+  Kept inline and separate from the page script on purpose: the gate must run even if the
+  script below never executes, and it must not depend on a cached copy of anything.
+-->
+<script>
+(function () {
+  'use strict';
+
+  const API_BASE = 'https://api.kidsfunbank.ca';
+  const USER_PATH = '/getuser';
+  const SIGNED_OUT_PAGE = 'login.html';
+  const PROBE_TIMEOUT_MS = 5000;
+
+  /**
+   * Input: none.
+   * Output: the HTTP status of GET /getuser, or 0 when the API could not be reached.
+   * Action: GETs /getuser with credentials: 'include' — the only way the HttpOnly
+   *         session_id cookie travels to api.kidsfunbank.ca — without caching, waiting at
+   *         most PROBE_TIMEOUT_MS; the body is never read, only the status.
+   * Role: turns "is this visitor signed in?" into one number the gate can test.
+   */
+  async function probeSession() {
+    if (typeof fetch !== 'function') return 0;
+
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = controller ? setTimeout(function () { controller.abort(); }, PROBE_TIMEOUT_MS) : null;
+
+    try {
+      const response = await fetch(API_BASE + USER_PATH, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        credentials: 'include',
+        signal: controller ? controller.signal : undefined
+      });
+      return response.status;
+    } catch (error) {
+      return 0;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Input: a status from probeSession().
+   * Output: true when the API refused the probe for lack of a session (401/403).
+   * Action: compares the status with the two refusal codes.
+   * Role: narrows "not signed in" to what the API actually said, so a timeout or a flaky
+   *       connection never throws away a half-filled sheet.
+   */
+  function isSignedOut(status) {
+    return status === 401 || status === 403;
+  }
+
+  /**
+   * Input: none.
+   * Output: none (it navigates).
+   * Action: replaces this page with login.html.
+   * Role: the single exit for an absent or expired session, so the sheet never sits in the
+   *       Back history behind the sign-in screen.
+   */
+  function leaveForSignIn() {
+    window.location.replace(SIGNED_OUT_PAGE);
+  }
+
+  /**
+   * Input: none.
+   * Output: nothing (it may navigate away).
+   * Action: probes the session once and sends a refused visitor to login.html.
+   * Role: entry point of the gate — typing this page's URL while signed out ends on the
+   *       sign-in screen instead of on a sheet that could never be saved.
+   */
+  async function guard() {
+    if (isSignedOut(await probeSession())) leaveForSignIn();
+  }
+
+  guard();
+})();
+</script>
+
+<script>
+/**
+ * ---------------------------------------------------------------------------
+ * Data contract
+ *   GET  https://api.kidsfunbank.ca/getuser          -> { user_name, ... } for the greeting
+ *   GET  https://api.kidsfunbank.ca/companies-s/{key} -> one company, wrapped:
+ *          { numerical_values: { company_name, symbol, rank, moat_score, current_price,
+ *            cyclical_score, wl_base, anti_fragile_score, wl_optimistic, growth_score, ... },
+ *            analysis_files: [ ... ] }
+ *          (the key may be a symbol or a name - but a name answers an EMPTY record today,
+ *          see findInList(), which is why a name falls back to the list read)
+ *   GET  https://api.kidsfunbank.ca/companies        -> { count, companies: [ flat rows ] }
+ *   POST https://api.kidsfunbank.ca/update_analysis  -> the answer the footer reports
+ *   POST https://api.kidsfunbank.ca/logout           -> clears the session_id cookie
+ *
+ * This is the page middle.html?type=update-analysis hands over to:
+ * update-analysis.html?company_name=<the name>. It reads that company and fills the strip
+ * with what is already on file, so an update starts from the stored figures.
+ *
+ * What Submit sends (multipart/form-data, every part named as the column it is):
+ *   company_name, symbol, rank, moat_score, current_price, cyclical_score, wl_base,
+ *   anti_fragile_score, wl_optimistic, growth_score, memo,
+ *   plus one part per attached .html report (the thirteen section names).
+ *   - a blank box is left out, so the API keeps what is stored (its own upsert rule);
+ *   - a file box with nothing attached is left out too, and so is a file that is not .html;
+ *   - there is no `date` part: the row is dated by the server, as /addcompany does.
+ * ---------------------------------------------------------------------------
+ */
+'use strict';
+
+const API_BASE = 'https://api.kidsfunbank.ca';
+
+const ENDPOINTS = {
+  user: '/getuser',
+  companies: '/companies',
+  // The one-company read: /companies-s/{symbol} answers the wrapped record above.
+  company: (key) => '/companies-s/' + encodeURIComponent(key),
+  logout: '/logout',
+  update: '/update_analysis'
+};
+
+// The endpoint name the footer and every failure sentence use.
+const SUBMIT_LABEL = '/update_analysis';
+const SIGNED_OUT_PAGE = 'login.html';
+const REQUEST_TIMEOUT_MS = 8000;
+
+// The thirteen report slots, in the order the sheet draws them. Each name is a company
+// column, so a part lands on the section it belongs to without a lookup table.
+const SECTIONS = [
+  'company_profile',
+  'industry_map',
+  'company_position',
+  'financial_quality',
+  'strategy_vision',
+  'moat_analysis',
+  'cyclical_analysis',
+  'anti_fragile_analysis',
+  'growth_momentum_analysis',
+  'scenario_stress_analysis',
+  'additional_analysis_1',
+  'additional_analysis_2',
+  'additional_analysis_3'
+];
+
+// The figures on the summary strip: the input's own `name`, and the record keys it is filled
+// from (the API's spelling first, then the spellings a future payload might use).
+//   latest_price  <- current_price   (the quote the API stores)
+//   wl_base       <- wl_base / wl_ratio_base
+//   wl_optimistic <- wl_optimistic / wl_ratio_optimistic
+const STRIP_FIELDS = [
+  { field: 'company_name', keys: ['company_name', 'companyName', 'name'] },
+  { field: 'symbol', keys: ['symbol', 'ticker', 'code'] },
+  { field: 'moat_score', keys: ['moat_score', 'moatScore'] },
+  { field: 'current_price', keys: ['current_price', 'latest_price', 'currentPrice', 'latestPrice', 'price'] },
+  { field: 'cyclical_score', keys: ['cyclical_score', 'cyclicalScore'] },
+  { field: 'wl_base', keys: ['wl_base', 'wlBase', 'wl_ratio_base'] },
+  { field: 'anti_fragile_score', keys: ['anti_fragile_score', 'antiFragileScore', 'antifragile_score'] },
+  { field: 'wl_optimistic', keys: ['wl_optimistic', 'wlOptimistic', 'wl_ratio_optimistic'] },
+  { field: 'growth_score', keys: ['growth_score', 'growthScore'] }
+];
+
+const RANK_KEYS = ['rank', 'grade'];
+const HTML_NAME = /\.html?$/i;
+const HTML_TYPES = ['text/html', 'application/xhtml+xml'];
+const LOG_PREFIX = '[update]';
+
+let submitting = false;
+
+/**
+ * Input: none (reads window.location.search).
+ * Output: { value, kind } for the company the sheet is about — kind is 'name' or 'symbol' —
+ *         or null when the URL names no company.
+ * Action: reads ?company_name= (what middle.html writes), then ?name= and ?symbol=.
+ * Role: the one place the page learns which record it is updating.
+ */
+function readKey() {
+  const params = new URLSearchParams(window.location.search);
+  const name = (params.get('company_name') || params.get('name') || '').trim();
+  if (name) return { value: name, kind: 'name' };
+
+  const symbol = (params.get('symbol') || '').trim();
+  if (symbol) return { value: symbol, kind: 'symbol' };
+
+  return null;
+}
+
+/**
+ * Input: any value a record may hold — text, a number, null, an object.
+ * Output: trimmed text, "" for null/undefined, or "" for anything worth nothing on screen.
+ * Action: numbers become their digits, strings are trimmed, everything else yields "".
+ * Role: one reader for the strip, so a null column never prints "null" in a box.
+ */
+function asText(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+/**
+ * Input: a company record and a list of candidate keys, best spelling first.
+ * Output: the first value found, or undefined when none of the keys hold anything.
+ * Action: looks inside numerical_values first (the /companies-s/{key} wrapper), then at the
+ *         record itself (the flat rows /companies answers), skipping empty values.
+ * Role: one reader for both API shapes, so the strip is fed the same way whichever route
+ *       filled it — and a renamed field only needs its spelling added to STRIP_FIELDS.
+ */
+function pick(record, keys) {
+  if (!record || typeof record !== 'object') return undefined;
+
+  const sources = [record.numerical_values, record];
+  for (const source of sources) {
+    if (!source || typeof source !== 'object') continue;
+    for (const key of keys) {
+      const value = source[key];
+      if (value !== null && value !== undefined && value !== '') return value;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Input: an object fetched from the API.
+ * Output: any usable value of it (the record itself, the one entry of analysis_files, or {}).
+ * Action: prefers numerical_values' own company_name as the sign that the record is real.
+ * Role: answers "did this read bring a company back, or an empty shell?", which is what a
+ *       name lookup returns today.
+ */
+function hasCompany(record) {
+  return asText(pick(record, ['company_name', 'symbol'])) !== '';
+}
+
+/**
+ * Input: a byte count.
+ * Output: a short human string such as "12.4 KB", or "0 B".
+ * Action: scales through B/KB/MB/GB, keeps one decimal above bytes, drops a trailing .0.
+ * Role: the size hint under a picked file (same wording as the Add company sheet).
+ */
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let unit = 0;
+
+  while (value >= 1024 && unit < units.length - 1) {
+    value = value / 1024;
+    unit += 1;
+  }
+
+  const rounded = unit === 0 ? String(Math.round(value)) : value.toFixed(1);
+  return (rounded.slice(-2) === '.0' ? rounded.slice(0, -2) : rounded) + ' ' + units[unit];
+}
+
+/**
+ * Input: a FormData entry (or anything else).
+ * Output: true when it looks like a File.
+ * Action: checks for a string name and a numeric size.
+ * Role: lets the file boxes be read the same way on every browser, including one that
+ *       reports an empty placeholder for an untouched input.
+ */
+function isFileLike(value) {
+  return !!value && typeof value === 'object' &&
+    typeof value.name === 'string' && typeof value.size === 'number';
+}
+
+/**
+ * Input: a File-like object.
+ * Output: true when it is an HTML document — decided by name first, then MIME type.
+ * Action: matches .html/.htm case-insensitively, then accepts text/html and
+ *         application/xhtml+xml (some browsers report an empty type for local files).
+ * Role: the single rule that keeps a non-HTML file out of the request.
+ */
+function isHtmlFile(file) {
+  if (!isFileLike(file)) return false;
+  if (HTML_NAME.test(file.name)) return true;
+  return HTML_TYPES.indexOf((file.type || '').toLowerCase()) !== -1;
+}
+
+/**
+ * Input: an API path such as "/companies-s/0700.HK".
+ * Output: the parsed JSON body.
+ * Action: GETs API_BASE + path with credentials: 'include' — the HttpOnly session_id cookie
+ *         only travels when credentials are included — without caching, aborting after
+ *         REQUEST_TIMEOUT_MS, and throws an Error carrying .status on any non-2xx.
+ * Role: the single read helper for the user and company calls.
+ */
+async function fetchJson(path) {
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = controller ? setTimeout(function () { controller.abort(); }, REQUEST_TIMEOUT_MS) : null;
+
+  try {
+    const response = await fetch(API_BASE + path, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include',
+      signal: controller ? controller.signal : undefined
+    });
+
+    if (!response.ok) {
+      const error = new Error('HTTP ' + response.status);
+      error.status = response.status;
+      throw error;
+    }
+
+    return await response.json();
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * Input: the body /getuser answered with.
+ * Output: the username, or "" when the body holds none.
+ * Action: tries user_name first, then the other spellings the API may use, at the top level
+ *         or nested under data / user / result, and accepts a bare string body.
+ * Role: fills the "Welcome, <user>" line; the greeting is never invented.
+ */
+function toUsername(payload) {
+  if (typeof payload === 'string') return payload.trim();
+  if (!payload || typeof payload !== 'object') return '';
+
+  const candidates = [payload.user_name, payload.userName, payload.username, payload.user, payload.name, payload.data];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    if (candidate && typeof candidate === 'object') {
+      const nested = toUsername(candidate);
+      if (nested) return nested;
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Input: an error thrown by fetchJson().
+ * Output: true when the API refused the request for lack of a session (401/403).
+ * Action: reads the .status fetchJson() attaches to its errors.
+ * Role: separates "signed out" (back to login.html) from "no such company" and "endpoint
+ *       broke" (stay on the sheet and say so).
+ */
+function isSignedOut(error) {
+  return Boolean(error) && (error.status === 401 || error.status === 403);
+}
+
+/**
+ * Input: an error thrown by fetchJson().
+ * Output: one short sentence for the status line.
+ * Action: names the HTTP status when there is one, and the two likely causes otherwise.
+ * Role: every read failure is explained in one place instead of a blank sheet.
+ */
+function describeError(error) {
+  if (error && error.status) return 'the API answered HTTP ' + error.status + '.';
+  if (error && error.name === 'AbortError') return 'the API took too long to answer.';
+  return 'the API could not be reached.';
+}
+
+/**
+ * Input: none.
+ * Output: none (it navigates).
+ * Action: replaces the page with login.html.
+ * Role: the single exit for an absent or expired session.
+ */
+function leaveForSignIn() {
+  window.location.replace(SIGNED_OUT_PAGE);
+}
+
+/**
+ * Input: the text for the line above the strip, and its data-state
+ *        ("loading" / "ready" / "error").
+ * Output: none.
+ * Action: writes #sheet-note and marks its state for the colour.
+ * Role: says which company is on the sheet, or why it could not be read.
+ */
+function setNote(text, state) {
+  const note = document.getElementById('sheet-note');
+  if (!note) return;
+  note.textContent = text;
+  note.dataset.state = state;
+}
+
+/**
+ * Input: the text for the sticky footer, and its data-state
+ *        ("" / "warn" / "done" / "error").
+ * Output: none.
+ * Action: writes #submit-hint and marks its state.
+ * Role: the one line that reports what Submit did, including the API's own answer.
+ */
+function setHint(text, state) {
+  const hint = document.getElementById('submit-hint');
+  if (!hint) return;
+  hint.textContent = text;
+  hint.dataset.state = state || '';
+}
+
+/**
+ * Input: the text for the greeting and its data-state ("ready" / "empty" / "offline").
+ * Output: none.
+ * Action: writes #username and marks its state for the muted colour.
+ * Role: keeps the header honest when /getuser is unreadable.
+ */
+function setUsername(text, state) {
+  const name = document.getElementById('username');
+  if (!name) return;
+  name.textContent = text;
+  name.dataset.state = state;
+}
+
+/**
+ * Input: none.
+ * Output: none.
+ * Action: GETs /getuser and fills the greeting, or sends a refused visitor to login.html.
+ * Role: the "Welcome, <user>" line, read from the API that owns the session.
+ */
+async function loadUser() {
+  try {
+    const name = toUsername(await fetchJson(ENDPOINTS.user));
+    if (name) setUsername(name, 'ready');
+    else setUsername('\u2014', 'empty');
+  } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+    setUsername('\u2014', 'offline');
+  }
+}
+
+/**
+ * Input: none.
+ * Output: none (it navigates).
+ * Action: POSTs /logout with credentials: 'include', then replaces the page with
+ *         login.html whatever the answer was.
+ * Role: the only way to end the session — the session_id cookie is HttpOnly, so no page can
+ *       delete it itself.
+ */
+async function signOut() {
+  const button = document.getElementById('signout-button');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Signing out\u2026';
+  }
+
+  try {
+    await fetch(API_BASE + ENDPOINTS.logout, { method: 'POST', credentials: 'include' });
+  } catch (error) {
+    console.warn(LOG_PREFIX + ' sign-out failed', error);
+  }
+
+  window.location.replace(SIGNED_OUT_PAGE);
+}
+
+/**
+ * Input: the `name` of a field on the sheet and the text to put in it.
+ * Output: none.
+ * Action: sets the box's value and its default value — so Reset brings the company's stored
+ *         figure back instead of blanking the box.
+ * Role: one writer for the nine figures on the strip.
+ */
+function setValue(name, value) {
+  const input = document.querySelector('#update-form [name="' + name + '"]');
+  if (!input) return;
+  input.value = value;
+  input.defaultValue = value;
+}
+
+/**
+ * Input: the rank a record holds (a letter, or anything else).
+ * Output: none.
+ * Action: picks that letter in the select when it is A-F, otherwise leaves the empty choice;
+ *         marks the amber pill empty so a company with no grade does not wear amber.
+ * Role: the pill is the page's one coloured control — amber means "this company has a grade",
+ *       grey means "not graded yet".
+ */
+function setRank(rank) {
+  const select = document.getElementById('rank');
+  const pill = document.getElementById('rank-pill');
+  const letter = String(rank === null || rank === undefined ? '' : rank).trim().toUpperCase();
+  const known = /^[A-F]$/.test(letter);
+
+  if (select) {
+    select.value = known ? letter : '';
+    for (const option of select.options) {
+      option.defaultSelected = option.value === (known ? letter : '');
+    }
+  }
+
+  if (pill) pill.dataset.state = known ? 'ready' : 'empty';
+}
+
+/**
+ * Input: one company record (wrapped or flat).
+ * Output: none.
+ * Action: fills every figure on the strip from the record through pick(), then the rank pill.
+ * Role: an update starts from what is on file, so the analyst edits a difference instead of
+ *       retyping a whole record.
+ */
+function fillStrip(record) {
+  for (const item of STRIP_FIELDS) setValue(item.field, asText(pick(record, item.keys)));
+  setRank(pick(record, RANK_KEYS));
+}
+
+/**
+ * Input: the `name` of one file box.
+ * Output: none.
+ * Action: reads the box, then writes the card's data-state, the file name and the line under
+ *         it — "No file selected", "HTML · 12.4 KB attached", or "Not HTML".
+ * Role: shows on the page exactly which reports Submit will carry, and flags one it will not.
+ */
+function syncUpload(field) {
+  const form = document.getElementById('update-form');
+  if (!form) return;
+
+  const input = form.elements[field];
+  const card = form.querySelector('[data-upload="' + field + '"]');
+  const meta = form.querySelector('[data-upload-meta="' + field + '"]');
+  const nameEl = card ? card.querySelector('[data-upload-name]') : null;
+  const file = input && input.files ? input.files[0] : null;
+
+  if (!file || !file.name) {
+    if (card) card.dataset.state = '';
+    if (nameEl) nameEl.textContent = 'Choose a .html file';
+    if (meta) {
+      meta.dataset.state = '';
+      meta.textContent = 'No file selected';
+    }
+    return;
+  }
+
+  const valid = isHtmlFile(file);
+  if (card) card.dataset.state = valid ? 'ready' : 'error';
+  if (nameEl) nameEl.textContent = file.name;
+  if (meta) {
+    meta.dataset.state = valid ? 'ready' : 'error';
+    meta.textContent = valid
+      ? 'HTML \u00b7 ' + formatBytes(file.size) + ' attached'
+      : 'Not HTML \u2014 pick a .html file';
+  }
+}
+
+/**
+ * Input: none.
+ * Output: none.
+ * Action: calls syncUpload() for all thirteen boxes.
+ * Role: one refresh after Reset (which empties every file box) and after any pick.
+ */
+function syncUploads() {
+  for (const field of SECTIONS) syncUpload(field);
+}
+
+/**
+ * Input: the name a ?company_name= link carried.
+ * Output: the matching row of GET /companies, or null when no row matches.
+ * Action: reads the list once and compares the name, then the symbol, case-insensitively.
+ * Role: the fallback that makes a name usable. /companies-s/<a name> answers an empty record
+ *       today (only a symbol fills it), so a name would otherwise leave the strip blank.
+ */
+async function findInList(name) {
+  const payload = await fetchJson(ENDPOINTS.companies);
+  const rows = Array.isArray(payload)
+    ? payload
+    : (payload && Array.isArray(payload.companies) ? payload.companies : []);
+  const wanted = name.trim().toLowerCase();
+
+  const match = rows.find(function (row) {
+    if (!row || typeof row !== 'object') return false;
+    return asText(row.company_name).toLowerCase() === wanted ||
+      asText(row.symbol).toLowerCase() === wanted;
+  });
+
+  return match || null;
+}
+
+/**
+ * Input: none (reads ?company_name= / ?symbol= off the URL).
+ * Output: none.
+ * Action: reads the company the sheet is about — /companies-s/{key} first, the /companies list
+ *         when a name answers an empty record — and fills the strip with it. A missing key or
+ *         an unknown company is explained on the sheet, which stays usable: the boxes can still
+ *         be typed into and Submit still posts.
+ * Role: the page's opening read, the counterpart of viewcompany.html's one-company call.
+ */
+async function loadCompany() {
+  const key = readKey();
+
+  if (!key) {
+    setNote('This page was opened without a company \u2014 start from Update analysis on the dashboard.', 'error');
+    return;
+  }
+
+  setNote('Reading \u201c' + key.value + '\u201d\u2026', 'loading');
+
+  try {
+    let record = null;
+
+    try {
+      record = await fetchJson(ENDPOINTS.company(key.value));
+    } catch (error) {
+      if (isSignedOut(error)) {
+        leaveForSignIn();
+        return;
+      }
+      if (!error || error.status !== 404) throw error;
+    }
+
+    if (!hasCompany(record) && key.kind === 'name') record = await findInList(key.value);
+
+    if (!hasCompany(record)) {
+      setNote('No company called \u201c' + key.value + '\u201d is on file \u2014 check the spelling, ' +
+        'or add it with Add company first.', 'error');
+      return;
+    }
+
+    fillStrip(record);
+
+    const name = asText(pick(record, ['company_name'])) || key.value;
+    const symbol = asText(pick(record, ['symbol']));
+    setNote('Updating ' + name + (symbol ? ' (' + symbol + ')' : '') +
+      ' \u2014 change what you need, attach the new reports, then Submit.', 'ready');
+    document.title = name + ' \u00b7 Update analysis \u00b7 Company desk';
+  } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+    setNote('Could not read \u201c' + key.value + '\u201d \u2014 ' + describeError(error), 'error');
+  }
+}
+
+// What the footer says before anything is sent, and after a Reset.
+const DEFAULT_HINT = 'Submit posts the figures above, the reports you attach and the memo to /update_analysis.';
+
+/**
+ * Input: the <form> element.
+ * Output: { body, sent } — the multipart body to POST, and how many parts of each kind it
+ *         carries ({ parts, files }).
+ * Action: appends one part per filled-in figure (the nine on the strip, the rank and the memo),
+ *         then one part per attached .html report. A blank box is skipped, an untouched file
+ *         box is skipped, and so is a file that is not HTML — so an empty card never reaches
+ *         the API and the stored document behind it is left alone. There is no `date` part:
+ *         the row is dated server-side.
+ * Role: the exact request body Submit posts to /update_analysis. Every key is the sheet's own
+ *       `name` attribute, and every one of those is a company column, so a backend field is
+ *       found by reading the markup rather than a translation table.
+ */
+function buildSubmission(form) {
+  const body = new FormData();
+  const sent = { parts: 0, files: 0 };
+
+  const add = function (name, value) {
+    const text = value === null || value === undefined ? '' : String(value).trim();
+    if (text === '') return;
+    body.append(name, text);
+    sent.parts += 1;
+  };
+
+  for (const item of STRIP_FIELDS) {
+    const input = form.elements[item.field];
+    add(item.field, input ? input.value : '');
+  }
+
+  const rank = form.elements.rank;
+  add('rank', rank ? rank.value : '');
+
+  const memo = form.elements.memo;
+  add('memo', memo ? memo.value : '');
+
+  for (const field of SECTIONS) {
+    const input = form.elements[field];
+    const file = input && input.files ? input.files[0] : null;
+    if (!file || !file.name || !isHtmlFile(file)) continue;
+    // multipart keeps the browser's own file name, exactly as the author named the report
+    body.append(field, file, file.name);
+    sent.files += 1;
+  }
+
+  return { body, sent };
+}
+
+/**
+ * Input: the <form> element and whether a save is in flight.
+ * Output: none.
+ * Action: disables Submit and Reset, renames Submit "Submitting…" and sets aria-busy on the form.
+ * Role: one save at a time — a second click cannot post the sheet twice.
+ */
+function setBusy(form, busy) {
+  const button = document.getElementById('submit-button');
+  const reset = form ? form.querySelector('button[type="reset"]') : null;
+
+  if (button) {
+    button.disabled = busy;
+    button.textContent = busy ? 'Submitting\u2026' : 'Submit';
+  }
+  if (reset) reset.disabled = busy;
+  if (form) form.setAttribute('aria-busy', busy ? 'true' : 'false');
+}
+
+/**
+ * Input: the form's submit event (a click on Submit, or Enter in a box).
+ * Output: a Promise that settles once the API answered, or null when nothing was sent.
+ * Action: keeps the browser from posting, insists on a company name and a symbol (the API needs
+ *         both to find the row), builds the body with buildSubmission(), POSTs it to
+ *         /update_analysis as multipart/form-data, then reports the answer in the footer.
+ * Role: the page's only write. Nothing navigates away, so a refused save leaves every typed
+ *       figure and every chosen report exactly where they were.
+ */
+async function submitSheet(event) {
+  if (event) event.preventDefault();
+  if (submitting) return null;
+
+  const form = document.getElementById('update-form');
+  if (!form) return null;
+
+  const nameBox = form.elements.company_name;
+  const symbolBox = form.elements.symbol;
+  const company = nameBox ? nameBox.value.trim() : '';
+  const symbol = symbolBox ? symbolBox.value.trim() : '';
+
+  if (!company || !symbol) {
+    setHint('Fill in the company name and its symbol first \u2014 the API needs both to know which ' +
+      'row to update.', 'error');
+    const target = company ? symbolBox : nameBox;
+    if (target && typeof target.focus === 'function') target.focus();
+    return null;
+  }
+
+  submitting = true;
+  setBusy(form, true);
+
+  const submission = buildSubmission(form);
+  // The resolved URL, not the short label: a 405 in the console is nearly always the page host
+  // refusing a POST on a static route, and naming the host is what tells the two apart.
+  console.log(LOG_PREFIX + ' submit \u2192 ' + API_BASE + ENDPOINTS.update);
+  console.log(LOG_PREFIX + ' submission: ' + submission.sent.parts + ' figure part(s), ' +
+    submission.sent.files + ' report(s)');
+  setHint('Saving \u2014 posting ' + submission.sent.parts + ' figure(s) and ' +
+    submission.sent.files + ' report(s) to ' + SUBMIT_LABEL + '\u2026', 'warn');
+
+  try {
+    const response = await fetch(API_BASE + ENDPOINTS.update, {
+      method: 'POST',
+      // No Content-Type header: a FormData body makes fetch write
+      // `multipart/form-data; boundary=<random>` itself, and hand-setting the header would drop
+      // the boundary, so the server could read the figures but never parse a report.
+      body: submission.body,
+      credentials: 'include'
+    });
+
+    if (response.ok) {
+      setHint('Saved \u2014 ' + SUBMIT_LABEL + ' answered HTTP ' + response.status + ' (' +
+        submission.sent.parts + ' figure(s), ' + submission.sent.files + ' report(s)).', 'done');
+    } else if (response.status === 401 || response.status === 403) {
+      setHint('Not saved \u2014 the session was refused (HTTP ' + response.status +
+        '). Sign in again, then Submit once more.', 'error');
+    } else if (response.status === 404) {
+      setHint('Not saved \u2014 the API has no ' + SUBMIT_LABEL + ' route yet (HTTP 404). The sheet ' +
+        'would have sent ' + submission.sent.parts + ' figure(s) and ' + submission.sent.files +
+        ' report(s).', 'error');
+    } else if (response.status === 405) {
+      setHint('Not saved \u2014 HTTP 405 from ' + API_BASE + ENDPOINTS.update + ': that host serves ' +
+        'pages only. Reload this page (Cmd+Shift+R) and Submit again.', 'error');
+    } else {
+      setHint('Not saved \u2014 ' + SUBMIT_LABEL + ' answered HTTP ' + response.status + '.', 'error');
+    }
+
+    return response;
+  } catch (error) {
+    const reason = (error && error.message) ? error.message : 'network error';
+    setHint('Not saved \u2014 could not reach ' + SUBMIT_LABEL + ' (' + reason + ').', 'error');
+    return null;
+  } finally {
+    submitting = false;
+    setBusy(form, false);
+  }
+}
+
+/**
+ * Input: the form's reset event.
+ * Output: none.
+ * Action: lets the browser put every box back to its default — which is the company's stored
+ *         record, because setValue() and setRank() write the defaults too — then re-reads all
+ *         thirteen file boxes on the next tick and restores the footer's opening line.
+ * Role: Reset undoes the edit, not the company: it never blanks a record that was read.
+ */
+function handleReset() {
+  window.setTimeout(function () {
+    syncUploads();
+    setHint(DEFAULT_HINT, '');
+  }, 0);
+
+  console.log(LOG_PREFIX + ' reset \u2192 the stored record');
+}
+
+/**
+ * Input: none (the script sits at the end of <body>, so the DOM already exists).
+ * Output: none.
+ * Action: starts the greeting and the company read, then wires Submit, Reset, the thirteen file
+ *         boxes and the sign-out button.
+ * Role: single entry point for the page.
+ */
+function init() {
+  loadUser();
+  loadCompany();
+
+  const form = document.getElementById('update-form');
+  if (form) {
+    form.addEventListener('submit', submitSheet);
+    form.addEventListener('reset', handleReset);
+
+    for (const field of SECTIONS) {
+      const input = form.elements[field];
+      if (input) input.addEventListener('change', function () { syncUpload(field); });
+    }
+  }
+
+  const signOutButton = document.getElementById('signout-button');
+  if (signOutButton) signOutButton.addEventListener('click', signOut);
+}
+
+init();
+</script>
+</body>
+</html>
+
