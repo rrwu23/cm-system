@@ -314,7 +314,24 @@
     letter-spacing: .01em;
   }
 
-  /* ---------- Rank: an amber pill, and still a list, so a grade can be corrected ---------- */
+  /* The strip's nine figures are read-only, so they are drawn as values, not as fields: a
+     quieter fill, a border that never lights up under the pointer, and no caret. They stay
+     selectable, so a figure can still be copied out of the box, and they stay in the form, so
+     buildSubmission() posts them. */
+  .field input[readonly] {
+    border-color: #e3e9f4;
+    background: #f3f6fc;
+    cursor: default;
+  }
+
+  .field input[readonly]:hover { border-color: #e3e9f4; }
+
+  .field input[readonly]:focus {
+    border-color: var(--focus);
+    box-shadow: 0 0 0 3px rgba(47, 111, 237, .14);
+  }
+
+  /* ---------- Rank: an amber pill that states the grade — the letter is read, never picked ---------- */
   .rank-cell {
     grid-row: 1 / span 2;
     grid-column: 1;
@@ -324,7 +341,6 @@
   }
 
   .rank-pill {
-    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -333,46 +349,16 @@
     border-radius: 999px;
     background: linear-gradient(150deg, var(--amber) 0%, var(--amber-strong) 100%);
     box-shadow: 0 14px 26px -18px rgba(229, 169, 0, .95);
-    transition: filter .15s ease, box-shadow .15s ease;
   }
 
-  .rank-pill:hover { filter: brightness(1.03); }
-
-  /* The select fills the pill and is the pill: no border, no fill of its own, one big letter */
-  .rank-pill select {
-    width: 100%;
-    min-height: 86px;
-    padding: 0 10px;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
+  /* One big letter, and that is the whole pill: no border, no chevron, nothing to click */
+  .rank-letter {
     color: var(--amber-ink);
-    font: inherit;
     font-size: 30px;
     font-weight: 700;
     letter-spacing: .02em;
-    text-align: center;
-    text-align-last: center;
-    appearance: none;
-    -webkit-appearance: none;
-    cursor: pointer;
-  }
-
-  .rank-pill select:focus-visible {
-    outline: 3px solid rgba(47, 111, 237, .45);
-    outline-offset: 3px;
-  }
-
-  /* A quiet chevron, so the pill reads as a list without shouting over the letter */
-  .rank-pill::after {
-    content: "\25BE";
-    position: absolute;
-    right: 12px;
-    bottom: 10px;
-    color: var(--amber-ink);
-    font-size: 11px;
-    opacity: .55;
-    pointer-events: none;
+    line-height: 1;
+    user-select: none;
   }
 
   .rank-pill[data-state="empty"] {
@@ -380,7 +366,7 @@
     box-shadow: none;
   }
 
-  .rank-pill[data-state="empty"] select { color: var(--ink-faint); }
+  .rank-pill[data-state="empty"] .rank-letter { color: var(--ink-faint); }
 
   /* ---------- Report grids: two columns for the analysis sections, three for the extras ---------- */
   .grid {
@@ -611,7 +597,7 @@
     .band { padding: 12px 12px 14px; }
     .summary, .grid-3 { grid-template-columns: minmax(0, 1fr); }
     .rank-pill { width: 96px; min-height: 72px; }
-    .rank-pill select { min-height: 72px; font-size: 26px; }
+    .rank-letter { font-size: 26px; }
     .upload { min-height: 84px; padding: 14px; }
     .sheet-footer { padding: 12px; }
     .buttons { width: 100%; }
@@ -669,76 +655,70 @@
         order down each pair: Company name / symbol, Moat score / latest price,
         cyclical score / WL-ratio(base), Anti-fragile score / WL-ratio(optimistic), growth score,
         with the rank pill standing beside them for both rows.
+        Every figure here is read-only: the strip is a statement of the record on file, filled by
+        fillStrip() and posted back untouched by buildSubmission(). The only things an analyst adds
+        on this page are the reports and the memo — so the boxes carry `readonly` (still
+        submittable, still copyable) and the pill carries its letter in a hidden input.
       -->
       <section class="band band-summary" aria-label="Company being updated">
         <div class="summary">
 
+          <!-- The grade is stated, never picked: the pill shows the letter and a hidden input
+               carries it, so `rank` still goes to the API as a part while the pill has nothing
+               to click. -->
           <div class="field rank-cell">
-            <label class="field-label" for="rank">Rank</label>
+            <span class="field-label">Rank</span>
             <span class="rank-pill" id="rank-pill" data-state="empty">
-              <select id="rank" name="rank" aria-label="Rank, A to F" title="Rank, A to F">
-                <option value="">&mdash;</option>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
-                <option value="D">D</option>
-                <option value="E">E</option>
-                <option value="F">F</option>
-              </select>
+              <span class="rank-letter" id="rank-letter">&mdash;</span>
             </span>
+            <input type="hidden" name="rank" id="rank" value="">
           </div>
 
           <label class="field">
             <span class="field-label">Company name</span>
-            <input type="text" name="company_name" maxlength="300" required
-                   autocomplete="organization" spellcheck="false">
+            <input type="text" name="company_name" maxlength="300" readonly
+                   autocomplete="off" spellcheck="false" placeholder="&mdash;">
           </label>
 
           <label class="field">
             <span class="field-label">symbol</span>
-            <input type="text" name="symbol" maxlength="32" required spellcheck="false">
+            <input type="text" name="symbol" maxlength="32" readonly spellcheck="false"
+                   placeholder="&mdash;">
           </label>
 
           <label class="field">
             <span class="field-label">Moat score</span>
-            <input type="number" name="moat_score" min="0" max="100" step="1"
-                   inputmode="numeric" placeholder="0&ndash;100">
+            <input type="number" name="moat_score" readonly placeholder="&mdash;">
           </label>
 
           <label class="field">
             <span class="field-label">latest_price</span>
-            <input type="number" name="current_price" min="0" step="any"
-                   inputmode="decimal" placeholder="e.g. 397.20">
+            <input type="number" name="current_price" readonly placeholder="&mdash;">
           </label>
 
           <label class="field">
             <span class="field-label">cyclical score</span>
-            <input type="number" name="cyclical_score" min="0" max="100" step="1"
-                   inputmode="numeric" placeholder="0&ndash;100">
+            <input type="number" name="cyclical_score" readonly placeholder="&mdash;">
           </label>
 
           <label class="field">
             <span class="field-label">WL-ratio(base)</span>
-            <input type="number" name="wl_base" min="0" step="0.01"
-                   inputmode="decimal" placeholder="e.g. 1.73">
+            <input type="number" name="wl_base" readonly placeholder="&mdash;">
           </label>
 
           <label class="field">
             <span class="field-label">Anti-fragile score</span>
-            <input type="number" name="anti_fragile_score" min="0" max="100" step="1"
-                   inputmode="numeric" placeholder="0&ndash;100">
+            <input type="number" name="anti_fragile_score" readonly placeholder="&mdash;">
           </label>
 
           <label class="field">
             <span class="field-label">WL-ratio(optimistic)</span>
-            <input type="number" name="wl_optimistic" min="0" step="0.01"
-                   inputmode="decimal" placeholder="e.g. 3.44">
+            <input type="number" name="wl_optimistic" readonly placeholder="&mdash;">
           </label>
 
           <label class="field">
             <span class="field-label">growth score</span>
-            <input type="number" name="growth_score" min="0" max="100" step="1"
-                   inputmode="numeric" placeholder="0&ndash;100">
+            <input type="number" name="growth_score" readonly placeholder="&mdash;">
           </label>
 
         </div>
@@ -991,7 +971,7 @@
       <!-- Sticky action bar: what Submit will send on the left, Reset + amber Submit on the right -->
       <div class="sheet-footer">
         <p class="foot-hint" id="submit-hint" role="status" aria-live="polite">
-          Submit posts the figures above, the reports you attach and the memo to /update_analysis.
+          Submit posts the figures on file, the reports you attach and the memo to /update_analysis.
         </p>
         <div class="buttons">
           <button class="btn btn-soft" type="reset">Reset</button>
@@ -1465,9 +1445,10 @@ async function signOut() {
 }
 
 /**
- * Input: the `name` of a field on the sheet and the text to put in it.
+ * Input: the `name` of a figure on the strip and the text to put in it.
  * Output: none.
- * Action: sets the box's value and its default value — so Reset brings the company's stored
+ * Action: sets the box's value and its default value — the box is read-only, so this is the
+ *         only writer, and writing the default too means Reset brings the company's stored
  *         figure back instead of blanking the box.
  * Role: one writer for the nine figures on the strip.
  */
@@ -1481,24 +1462,24 @@ function setValue(name, value) {
 /**
  * Input: the rank a record holds (a letter, or anything else).
  * Output: none.
- * Action: picks that letter in the select when it is A-F, otherwise leaves the empty choice;
- *         marks the amber pill empty so a company with no grade does not wear amber.
- * Role: the pill is the page's one coloured control — amber means "this company has a grade",
- *       grey means "not graded yet".
+ * Action: writes that letter into the hidden `rank` input and its default value, prints it in
+ *         the pill, and marks the amber pill empty when the record holds no grade.
+ * Role: the pill is the page's one coloured element — amber means "this company has a grade",
+ *       grey means "not graded yet". It states the grade; it is not a control, so there is
+ *       nothing here to pick from.
  */
 function setRank(rank) {
-  const select = document.getElementById('rank');
+  const holder = document.getElementById('rank');
   const pill = document.getElementById('rank-pill');
-  const letter = String(rank === null || rank === undefined ? '' : rank).trim().toUpperCase();
-  const known = /^[A-F]$/.test(letter);
+  const letter = document.getElementById('rank-letter');
+  const grade = String(rank === null || rank === undefined ? '' : rank).trim().toUpperCase();
+  const known = /^[A-F]$/.test(grade);
 
-  if (select) {
-    select.value = known ? letter : '';
-    for (const option of select.options) {
-      option.defaultSelected = option.value === (known ? letter : '');
-    }
+  if (holder) {
+    holder.value = known ? grade : '';
+    holder.defaultValue = known ? grade : '';
   }
-
+  if (letter) letter.textContent = known ? grade : '\u2014';
   if (pill) pill.dataset.state = known ? 'ready' : 'empty';
 }
 
@@ -1506,8 +1487,8 @@ function setRank(rank) {
  * Input: one company record (wrapped or flat).
  * Output: none.
  * Action: fills every figure on the strip from the record through pick(), then the rank pill.
- * Role: an update starts from what is on file, so the analyst edits a difference instead of
- *       retyping a whole record.
+ * Role: an update starts from what is on file, and the strip states it — read-only, so the
+ *       analyst is looking at the record the reports will be filed against, not retyping it.
  */
 function fillStrip(record) {
   for (const item of STRIP_FIELDS) setValue(item.field, asText(pick(record, item.keys)));
@@ -1590,8 +1571,8 @@ async function findInList(name) {
  * Output: none.
  * Action: reads the company the sheet is about — /companies-s/{key} first, the /companies list
  *         when a name answers an empty record — and fills the strip with it. A missing key or
- *         an unknown company is explained on the sheet, which stays usable: the boxes can still
- *         be typed into and Submit still posts.
+ *         an unknown company is explained on the sheet, which stays usable: the strip is
+ *         read-only, and Submit still posts whatever it holds plus the reports and the memo.
  * Role: the page's opening read, the counterpart of viewcompany.html's one-company call.
  */
 async function loadCompany() {
@@ -1630,7 +1611,8 @@ async function loadCompany() {
     const name = asText(pick(record, ['company_name'])) || key.value;
     const symbol = asText(pick(record, ['symbol']));
     setNote('Updating ' + name + (symbol ? ' (' + symbol + ')' : '') +
-      ' \u2014 change what you need, attach the new reports, then Submit.', 'ready');
+      ' \u2014 the figures are read-only here; attach the new reports and the memo, then Submit.',
+      'ready');
     document.title = name + ' \u00b7 Update analysis \u00b7 Company desk';
   } catch (error) {
     if (isSignedOut(error)) {
@@ -1642,7 +1624,7 @@ async function loadCompany() {
 }
 
 // What the footer says before anything is sent, and after a Reset.
-const DEFAULT_HINT = 'Submit posts the figures above, the reports you attach and the memo to /update_analysis.';
+const DEFAULT_HINT = 'Submit posts the figures on file, the reports you attach and the memo to /update_analysis.';
 
 /**
  * Input: the <form> element.
@@ -1712,11 +1694,12 @@ function setBusy(form, busy) {
 /**
  * Input: the form's submit event (a click on Submit, or Enter in a box).
  * Output: a Promise that settles once the API answered, or null when nothing was sent.
- * Action: keeps the browser from posting, insists on a company name and a symbol (the API needs
- *         both to find the row), builds the body with buildSubmission(), POSTs it to
- *         /update_analysis as multipart/form-data, then reports the answer in the footer.
- * Role: the page's only write. Nothing navigates away, so a refused save leaves every typed
- *       figure and every chosen report exactly where they were.
+ * Action: keeps the browser from posting, insists the record carries a company name and a symbol
+ *         (both read-only on this sheet; the API needs them to find the row), builds the body
+ *         with buildSubmission(), POSTs it to /update_analysis as multipart/form-data, then
+ *         reports the answer in the footer.
+ * Role: the page's only write. Nothing navigates away, so a refused save leaves the memo and
+ *       every chosen report exactly where they were.
  */
 async function submitSheet(event) {
   if (event) event.preventDefault();
@@ -1730,11 +1713,12 @@ async function submitSheet(event) {
   const company = nameBox ? nameBox.value.trim() : '';
   const symbol = symbolBox ? symbolBox.value.trim() : '';
 
+  // The strip is read-only, so neither box can be filled in here: an empty one means the record
+  // itself is incomplete, and the API needs both to know which row to touch.
   if (!company || !symbol) {
-    setHint('Fill in the company name and its symbol first \u2014 the API needs both to know which ' +
-      'row to update.', 'error');
-    const target = company ? symbolBox : nameBox;
-    if (target && typeof target.focus === 'function') target.focus();
+    setHint('Cannot save \u2014 this record has no ' + (company ? 'symbol' : 'company name') +
+      ' on file, and the API needs both. Set it with Add company, then start Update analysis ' +
+      'again from the dashboard.', 'error');
     return null;
   }
 
