@@ -244,7 +244,8 @@
 
   /* ---------- One block per analysis: label on the left, growing table on the
      right. A row is appended for every document the API reports for that
-     section, so the table grows as the company is re-analysed. */
+     section, so the table holds the company's whole history; the wrapper below
+     shows three rows of it at a time and scrolls the rest. */
   .reports {
     display: grid;
     gap: 24px;
@@ -271,8 +272,17 @@
 
   .report-name[data-empty="true"] { color: var(--ink-soft); }
 
+  /* The head plus three rows is the window: a company re-analysed a dozen times
+     keeps its twelve rows in the DOM (every stored upload is drawn) and scrolls
+     them here, so one long history never pushes the next label off the page.
+     Measured in Chrome the head is 36.6px and a row 40.8px, so 172px (170px inside
+     the border) shows three whole rows and an 11px sliver of the fourth - that
+     sliver is the scroll cue on a platform that hides its overlay scrollbar. */
   .mini-wrap {
-    overflow-x: auto;
+    max-height: 172px;
+    overflow: auto;
+    /* sideways stays inside the table; downward is left to chain into the page, so
+       the wheel does not come to a dead stop once the last row is reached. */
     overscroll-behavior-x: contain;
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -308,12 +318,18 @@
   .mini-table tbody tr:last-child td { border-bottom: 0; }
 
   .mini-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
     background: #f1f5fc;
     color: var(--ink-soft);
     font-size: 11.5px;
     font-weight: 700;
     letter-spacing: .08em;
     text-transform: uppercase;
+    /* collapse eats the th's own bottom border once it is sticky, so the rule
+       under the labels is drawn as an inset shadow instead. */
+    box-shadow: inset 0 -1px 0 var(--line);
   }
 
   .mini-table th:first-child { width: 46%; }
@@ -538,11 +554,14 @@
  * An analysis_files item either names its own section - {field: "moat_analysis",
  * path: "/app/...html", date: "2026-10-28"} - or maps sections to their document
  * - {moat_analysis: "/app/...html", date: "2026-10-28"} - and a mapped value may
- * be a list of documents. A section is drawn as one row per document, stamped
- * with the date that item says the document was added (else the record's
+ * be a list of documents. A section is drawn as one row per stored document,
+ * stamped with the date that item says the document was added (else the record's
  * numerical_values.date), so the mini tables grow as the company is
- * re-analysed. No document means a single muted "Not uploaded yet" row, so
- * every table keeps its two columns.
+ * re-analysed - and a re-upload of the identical path is a new row, because it is
+ * a new upload. The whole history stays in the DOM: the wrapper is the window over
+ * it (head + three rows, then it scrolls) rather than a row limit, so twelve
+ * uploads are twelve rows and nothing is truncated. No document means a single
+ * muted "Not uploaded yet" row, so every table keeps its two columns.
  *
  * The session is the HttpOnly session_id cookie the API set at sign-in: these
  * requests only carry it with credentials: 'include', because the page lives on
@@ -843,8 +862,11 @@ function toEntry(item, fallbackDate) {
  *         its own section ({field, path, date}) or maps sections to their documents
  *         ({moat_analysis: "/app/...", date}), and a mapped value may be a list of
  *         documents. A row is stamped with the date it was added - the document's own
- *         stamp, else the item's, else the record's numerical_values.date - and a path
- *         the list repeats is drawn once.
+ *         stamp, else the item's, else the record's numerical_values.date. A path is
+ *         only folded away inside the upload that names it twice (the plain key plus
+ *         a <field>_history alias); the same path stored again by a later upload keeps
+ *         its own row, so a section reads as the whole history - twelve uploads of one
+ *         document are twelve rows - and never as one row per distinct file.
  * Role: the single read of the report list; renderReports() then draws one mini table
  *       per section, so the tables grow as the company is re-analysed.
  */
@@ -860,14 +882,15 @@ function toHistories(record) {
     : {};
   const fallbackDate = readFirst(numbers, ['date', 'updated_at', 'scored_at']);
 
-  function add(field, source, date) {
+  function add(field, source, date, taken) {
     const entries = history[field];
     if (!entries || source === null || source === undefined || source === '') return;
     for (const item of Array.isArray(source) ? source : [source]) {
       const entry = toEntry(item, date === undefined ? fallbackDate : date);
       if (!entry) continue;
-      const known = entries.some(function (kept) { return kept.path === entry.path; });
-      if (!known) entries.push(entry);
+      if (taken.has(entry.path)) continue;
+      taken.add(entry.path);
+      entries.push(entry);
     }
   }
 
@@ -875,11 +898,14 @@ function toHistories(record) {
     if (!item || typeof item !== 'object') continue;
 
     const date = readFirst(item, ENTRY_DATE_KEYS);
+    // Paths this upload has already given a row; a later upload starts a fresh set,
+    // which is what keeps every upload of the same document in the history.
+    const taken = new Set();
 
     // One document per entry: the entry says which section it belongs to.
     const section = readFirst(item, ENTRY_SECTION_KEYS);
     if (section !== undefined) {
-      add(String(section).trim(), item, date);
+      add(String(section).trim(), item, date, taken);
       continue;
     }
 
@@ -889,7 +915,7 @@ function toHistories(record) {
         const source = item[key];
         if (source === null || source === undefined || source === '') continue;
         if (Array.isArray(source) && !source.length) continue;
-        add(field, source, date);
+        add(field, source, date, taken);
       }
     }
   }
@@ -1164,24 +1190,31 @@ function buildEntryRow(entry) {
 /**
  * Input: one section definition and its entries.
  * Output: a .mini-wrap <div> holding the section's date/html table.
- * Action: builds thead (date | html) once, then one row per entry - or a single
- *         muted "Not uploaded yet" row when the section holds no document - and
- *         makes the wrapper a keyboard-reachable scroll region.
- * Role: the mini table under each analysis label; it grows with the entries.
+ * Action: builds thead (date | html) once, then one row per entry - every stored
+ *         document, however long the history - or a single muted "Not uploaded yet"
+ *         row when the section holds no document, and makes the wrapper a
+ *         keyboard-reachable scroll region whose sticky head stays put while the
+ *         wrapper scrolls (its max-height is the head plus three rows, see the
+ *         .mini-wrap rule).
+ * Role: the mini table under each analysis label; it holds the whole history and the
+ *       window over it is fixed, so a dozen uploads cost the page three rows.
  */
 function buildMiniTable(section, entries) {
   const wrap = document.createElement('div');
   wrap.className = 'mini-wrap';
   wrap.tabIndex = 0;
   wrap.setAttribute('role', 'region');
-  wrap.setAttribute('aria-label', section.label + ' history');
+  wrap.setAttribute('aria-label', section.label + ' history, '
+    + entries.length + (entries.length === 1 ? ' document' : ' documents'));
 
   const table = document.createElement('table');
   table.className = 'mini-table';
 
   const caption = document.createElement('caption');
   caption.className = 'sr-only';
-  caption.textContent = section.label + ': when each report was stored and the document itself.';
+  caption.textContent = section.label + ': ' + entries.length
+    + (entries.length === 1 ? ' report, ' : ' reports, ')
+    + 'when each one was stored and the document itself.';
   table.appendChild(caption);
 
   const head = document.createElement('thead');
@@ -1223,7 +1256,8 @@ function buildMiniTable(section, entries) {
  *         one pass over record.analysis_files (toHistories()), so every stored document
  *         is drawn in its own section's mini table with the date it was added; each row
  *         links to the stored path, so no symbol is needed to open a report.
- * Role: the body of the page - the part that grows as the company is re-analysed.
+ * Role: the body of the page - the part that grows as the company is re-analysed, with
+ *       each table scrolled rather than cut when its history passes three rows.
  */
 function renderReports(record) {
   const reports = document.getElementById('reports');
