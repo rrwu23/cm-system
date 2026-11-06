@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Update analysis &middot; Company desk</title>
+<title>Update analysis &middot; RR research</title>
 <style>
   /* ---------- Design tokens: the same amber + slate-blue pair every page uses ---------- */
   :root {
@@ -1618,7 +1618,7 @@ async function loadCompany() {
     setNote('Updating ' + name + (symbol ? ' (' + symbol + ')' : '') +
       ' \u2014 the figures are read-only here; attach the new reports and the memo, then Submit.',
       'ready');
-    document.title = name + ' \u00b7 Update analysis \u00b7 Company desk';
+    document.title = name + ' \u00b7 Update analysis \u00b7 RR research';
   } catch (error) {
     if (isSignedOut(error)) {
       leaveForSignIn();

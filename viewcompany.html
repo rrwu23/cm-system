@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Company view &middot; Company desk</title>
+<title>Company view &middot; RR research</title>
 <style>
   /* ---------- Design tokens: same amber + slate-blue accents as home.html ---------- */
   :root {
@@ -1303,7 +1303,7 @@ function renderRecord(record) {
   renderReports(record);
   hidePicker();
 
-  document.title = (heading === EMPTY ? 'Company view' : heading) + ' \u00b7 Company desk';
+  document.title = (heading === EMPTY ? 'Company view' : heading) + ' \u00b7 RR research';
 }
 
 /**
@@ -1320,7 +1320,7 @@ function renderBlank(message) {
   renderTiles({});
   const reports = document.getElementById('reports');
   if (reports) reports.textContent = '';
-  document.title = 'Company view \u00b7 Company desk';
+  document.title = 'Company view \u00b7 RR research';
 }
 
 /**
