@@ -274,9 +274,11 @@
   .btn-amber:active { transform: translateY(0); }
 
   /* ---------- The one button that can have nowhere to go ----------
-     "View company" is grayed out while the box holds something neither /all-names nor
-     /all-symbols knows (syncViewLink() decides; a click on it is swallowed). It keeps its
-     size and its href, so the row never jumps and re-enabling costs no rewrite. */
+     "View company" is gray from the moment the page opens — an empty box names no company,
+     so there is nothing to view — and stays gray while the box holds something neither
+     /all-names nor /all-symbols knows (syncViewLink() decides; a click on it is swallowed).
+     Only a value that is on file turns it amber. It keeps its size and its href, so the row
+     never jumps and re-enabling costs no rewrite. */
   .btn.is-disabled,
   .btn.is-disabled:hover,
   .btn.is-disabled:active,
@@ -542,11 +544,12 @@
   </header>
 
   <!-- Yellow textbox + matching "View company" link. The href is kept in step with
-       what the box holds (viewcompany.html?symbol=… / ?name=…), so an empty box opens
-       the picker. Typing opens a list of the names and symbols that start with the text
-       — the two lists behind it are /all-names and /all-symbols, and clicking the box
-       alone opens nothing — and the button grays out (aria-disabled, is-disabled) while
-       the box names neither. -->
+       what the box holds (viewcompany.html?symbol=… / ?name=…). Typing opens a list of the
+       names and symbols that start with the text — the two lists behind it are /all-names
+       and /all-symbols, and clicking the box alone opens nothing — and the button is gray
+       (aria-disabled, is-disabled) until the box names a company that is on file: an empty
+       box has nothing to view, so it starts gray and stays that way until a name or symbol
+       is typed or picked. -->
   <section class="picker" aria-label="Choose a company">
     <div class="company-field">
       <label class="sr-only" for="company-input">Company name</label>
@@ -570,7 +573,12 @@
         aria-label="Company names and symbols"
         hidden></ul>
     </div>
-    <a class="btn btn-amber" id="view-company" href="viewcompany.html">View company</a>
+    <a class="btn btn-amber is-disabled"
+       id="view-company"
+       href="viewcompany.html"
+       aria-disabled="true"
+       tabindex="-1"
+       title="Type a company name or symbol first, or pick one from the list">View company</a>
   </section>
 
   <!-- Every shortcut has a page behind it now: Add company opens its sheet, Update analysis
@@ -1389,12 +1397,13 @@ async function signOut() {
  * Action: points the #view-company link at viewcompany.html, carrying the company as
  *         ?name=… or ?symbol=… — with the list's own spelling and kind when the box holds a
  *         listed value (data-kind covers a pick made before the lists arrived), and plain
- *         text as a symbol otherwise — or at the bare page, which opens the company picker,
- *         when the box is empty. While the box holds text that is in neither list, the
- *         button is grayed out: aria-disabled, out of the tab order (tabindex="-1"), a
- *         not-allowed cursor and a tooltip that says why. Empty box, a listed value, or a
- *         list that could not be read all keep it amber — a failed read never blocks the
- *         page, and the drill-down has a picker of its own as a backstop.
+ *         text as a symbol otherwise. The button is gray (is-disabled + aria-disabled, out
+ *         of the tab order, a not-allowed cursor) while the box names no company on file:
+ *         that is its state on load — an empty box has nothing to view — and it stays that
+ *         way for text that is in neither list, with a tooltip that says which of the two
+ *         applies. A listed value turns it amber; a list that could not be read leaves typed
+ *         text clickable, since a failed read never blocks the page and the drill-down has a
+ *         picker of its own as a backstop.
  * Role: gives "View company" a real href *and* a real state, so a click, a middle-click and
  *       the keyboard all agree with what the box currently says.
  */
@@ -1410,7 +1419,8 @@ function syncViewLink() {
   const query = text ? (kind === 'name' ? '?name=' : '?symbol=') + encodeURIComponent(value) : '';
   link.href = VIEW_PAGE + query;
 
-  const usable = !text || Boolean(match) || !suggestionList;
+  // Nothing typed means nothing to open — the gray default the page loads with.
+  const usable = text ? (Boolean(match) || !suggestionList) : false;
   link.classList.toggle('is-disabled', !usable);
   if (usable) {
     link.removeAttribute('aria-disabled');
@@ -1419,7 +1429,9 @@ function syncViewLink() {
   } else {
     link.setAttribute('aria-disabled', 'true');
     link.setAttribute('tabindex', '-1');
-    link.title = '"' + text + '" is not a company name or symbol on file — pick one from the list';
+    link.title = text
+      ? '"' + text + '" is not a company name or symbol on file — pick one from the list'
+      : 'Type a company name or symbol first, or pick one from the list';
   }
 }
 
@@ -1427,9 +1439,9 @@ function syncViewLink() {
  * Input: the click event of the #view-company link.
  * Output: none (it may preventDefault).
  * Action: swallows the click while the link carries aria-disabled — the state syncViewLink()
- *         sets when the box names no company — so a mouse click, a middle-click and the
- *         Enter path all stop there instead of opening a page for a company that is not on
- *         file. An enabled button is left alone.
+ *         sets while the box is empty (its state on load) or names no company — so a mouse
+ *         click, a middle-click and the Enter path all stop there instead of opening a page
+ *         for a company that is not on file. An enabled button is left alone.
  * Role: what makes the grayed-out state mean something; an <a> has no disabled attribute of
  *       its own, so the guard is the behaviour.
  */
