@@ -437,6 +437,55 @@
   .data-table tbody tr:hover td:first-child { background: #f8fbff; }
 
 
+  /* ---------- Sortable head: every column name is a button ----------
+     The cell's padding moved onto the button, which fills the cell, so a click anywhere on
+     the head counts (not just on the word) and the label sits exactly where it did before.
+     The arrow is keyed off the cell's aria-sort, so the thing a screen reader announces and
+     the thing the eye sees are the same state — markSort() only ever writes that attribute. */
+  .data-table thead th { padding: 0; }
+
+  .sort-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 16px 18px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .sort-btn:hover { background: #e9f0fb; color: var(--blue-ink); }
+
+  /* Inset, because .panel clips an outline drawn outside the cell. */
+  .sort-btn:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -3px;
+  }
+
+  /* The arrow shows on the sorted column only, but its 9px always holds, so turning the
+     sort on or off never shifts the label. */
+  .sort-mark { flex: none; width: 9px; font-size: 9px; line-height: 1; }
+
+  /* The sorted head: a deeper tint than its neighbours, blue ink and a 2px rule, so the column
+     the table is ordered by reads at a glance (the tint sits on the button, never on the sticky
+     th, so the first column keeps its own opaque background). */
+  .data-table th[aria-sort="ascending"] .sort-btn,
+  .data-table th[aria-sort="descending"] .sort-btn {
+    background: #dce7f8;
+    color: var(--blue-ink);
+    box-shadow: inset 0 -2px 0 var(--blue-ink);
+  }
+
+  .data-table th[aria-sort="ascending"] .sort-mark::before { content: '\25B2'; }
+  .data-table th[aria-sort="descending"] .sort-mark::before { content: '\25BC'; }
+
+
   .cell-company { min-width: 220px; font-weight: 600; }
   .cell-symbol {
     color: var(--blue-ink);
@@ -610,16 +659,38 @@
           Companies with symbol, moat, cyclical, antifragile score, WL ratio base,
           WL ratio optimistic and rank. Every row opens that company's file.
         </caption>
+        <!-- Every column name is a button: a click orders the table by that column, in the
+             direction the column is normally read — a name or symbol A→Z (0→9 inside a
+             symbol), a score or ratio biggest first, the rank with the best grade on top —
+             and a second click on the same name flips it. aria-sort carries the state (it is
+             also what draws the arrow). The head is static markup, so one listener on the row
+             (handleSortClick) serves all eight, however often the body is re-drawn. -->
         <thead>
           <tr>
-            <th scope="col">Company name</th>
-            <th scope="col">Symbol</th>
-            <th scope="col">Moat</th>
-            <th scope="col">Cyclical</th>
-            <th scope="col">Antifragile score</th>
-            <th scope="col">WL ratio base</th>
-            <th scope="col">WL ratio optimistic</th>
-            <th scope="col">Rank</th>
+            <th scope="col" aria-sort="none">
+              <button type="button" class="sort-btn">Company name<span class="sort-mark" aria-hidden="true"></span></button>
+            </th>
+            <th scope="col" aria-sort="none">
+              <button type="button" class="sort-btn">Symbol<span class="sort-mark" aria-hidden="true"></span></button>
+            </th>
+            <th scope="col" aria-sort="none">
+              <button type="button" class="sort-btn">Moat<span class="sort-mark" aria-hidden="true"></span></button>
+            </th>
+            <th scope="col" aria-sort="none">
+              <button type="button" class="sort-btn">Cyclical<span class="sort-mark" aria-hidden="true"></span></button>
+            </th>
+            <th scope="col" aria-sort="none">
+              <button type="button" class="sort-btn">Antifragile score<span class="sort-mark" aria-hidden="true"></span></button>
+            </th>
+            <th scope="col" aria-sort="none">
+              <button type="button" class="sort-btn">WL ratio base<span class="sort-mark" aria-hidden="true"></span></button>
+            </th>
+            <th scope="col" aria-sort="none">
+              <button type="button" class="sort-btn">WL ratio optimistic<span class="sort-mark" aria-hidden="true"></span></button>
+            </th>
+            <th scope="col" aria-sort="none">
+              <button type="button" class="sort-btn">Rank<span class="sort-mark" aria-hidden="true"></span></button>
+            </th>
           </tr>
         </thead>
         <tbody id="companies-body">
@@ -685,17 +756,41 @@ const SYMBOL_KEYS = ['symbol', 'ticker', 'code'];
  * "keys" lists accepted payload spellings so snake_case or camelCase responses
  * both land in the right column. "link" marks the one column whose text becomes
  * the row's link to the company file (see rowHref()); "pill" draws a rank pill.
+ * "sort" is how a figure in the column compares — 'number' for a score or a ratio,
+ * 'text' for a name, a symbol or a grade — and "dir" is the direction the column is
+ * normally read in, which is what its first header click applies: A→Z for the
+ * ranking names and grades (a best grade is an early letter, so 'asc' puts it on
+ * top) and biggest first for the figures.
  */
 const COLUMNS = [
-  { keys: ['company_name', 'companyName', 'name', 'company'], cellClass: 'cell-company', link: true },
-  { keys: SYMBOL_KEYS, cellClass: 'cell-symbol' },
-  { keys: ['moat', 'moat_score', 'moatScore', 'alpha'], cellClass: 'cell-num' },
-  { keys: ['cyclical', 'cyclical_score', 'cyclicalScore', 'beta'], cellClass: 'cell-num' },
-  { keys: ['anti_fragile_score', 'antifragileScore', 'antifragile'], cellClass: 'cell-num' },
-  { keys: ['wl_ratio_base', 'wlRatioBase', 'wl_base', 'wlbase'], cellClass: 'cell-num' },
-  { keys: ['wl_ratio_optimistic', 'wlRatioOptimistic', 'wl_optimistic'], cellClass: 'cell-num' },
-  { keys: ['rank'], cellClass: 'cell-num', pill: true }
+  { keys: ['company_name', 'companyName', 'name', 'company'], cellClass: 'cell-company', link: true, sort: 'text', dir: 'asc' },
+  { keys: SYMBOL_KEYS, cellClass: 'cell-symbol', sort: 'text', dir: 'asc' },
+  { keys: ['moat', 'moat_score', 'moatScore', 'alpha'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
+  { keys: ['cyclical', 'cyclical_score', 'cyclicalScore', 'beta'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
+  { keys: ['anti_fragile_score', 'antifragileScore', 'antifragile'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
+  { keys: ['wl_ratio_base', 'wlRatioBase', 'wl_base', 'wlbase'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
+  { keys: ['wl_ratio_optimistic', 'wlRatioOptimistic', 'wl_optimistic'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
+  { keys: ['rank'], cellClass: 'cell-num', pill: true, sort: 'text', dir: 'asc' }
 ];
+
+/**
+ * The collator every text sort runs through: digits inside a value compare as digits, so
+ * 0700.HK lands before 300750.SZ and "9" before "10", and case is ignored, so two spellings
+ * of one name tie and keep the order the API sent them in.
+ */
+const TEXT_ORDER = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+/**
+ * Which column the table is ordered by and which way; index -1 means it is drawn in the
+ * order /companies answered with, which is how the page loads.
+ */
+let sortState = { index: -1, dir: 'asc' };
+
+/**
+ * The records behind the table, kept as they arrived so a header click can re-draw them in
+ * another order without another read of /companies.
+ */
+let companyRows = [];
 
 /**
  * Input: any JSON value coming back from the API.
@@ -729,6 +824,25 @@ function pick(record, keys) {
     if (value !== null && value !== undefined && value !== '') return value;
   }
   return undefined;
+}
+
+/**
+ * Input: one cell value from a company record.
+ * Output: a finite number, or null when the value is not one.
+ * Action: passes a number through, and reads the number out of a string after dropping the
+ *         thousands commas, spaces and a trailing percent sign the API may decorate with.
+ * Role: lets a figure column (moat, cyclical, antifragile, the two WL ratios) sort as figures
+ *       even when the API sends those numbers as strings.
+ */
+function toNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string') return null;
+
+  const text = value.replace(/[,%\s]/g, '');
+  if (!text) return null;
+
+  const number = Number(text);
+  return Number.isFinite(number) ? number : null;
 }
 
 /**
@@ -874,19 +988,20 @@ function showState(message, retry) {
 /**
  * Input: number of companies drawn in the table.
  * Output: none.
- * Action: rewrites the panel hint with the row count plus the horizontal-scroll tip.
- * Role: tells the user data arrived and that the table can scroll sideways.
+ * Action: rewrites the panel hint with the row count plus the two tips the table needs —
+ *         it scrolls sideways, and a column name sorts it.
+ * Role: tells the user data arrived, that the table can scroll sideways, and how to reorder it.
  */
 function setHint(count) {
   const hint = document.getElementById('table-hint');
   if (!hint) return;
 
+  const tips = 'scroll sideways \u00b7 click a column name to sort';
   if (!count) {
     hint.textContent = 'Scroll sideways to see every column';
     return;
   }
-  hint.textContent = count + (count === 1 ? ' company' : ' companies') +
-    ' \u00b7 scroll sideways to see every column';
+  hint.textContent = count + (count === 1 ? ' company' : ' companies') + ' \u00b7 ' + tips;
 }
 
 /**
@@ -904,12 +1019,14 @@ function rowHref(record) {
 }
 
 /**
- * Input: array of company record objects.
+ * Input: an array of company record objects.
  * Output: none.
  * Action: rebuilds tbody from COLUMNS using textContent only (no HTML injection),
  *         styles rank as a pill, sends numbers through tabular figures, and — when the
  *         record has a symbol — puts a link to the company's file in the name cell and marks
- *         the row clickable (`tr.row-linked`, handled by handleRowClick()).
+ *         the row clickable (`tr.row-linked`, handled by handleRowClick()). The rows are drawn
+ *         in sortState's order when a header has been pressed, and in the API's order until
+ *         then.
  * Role: draws the main analysis table, makes every row a door to viewcompany.html?symbol=…,
  *       and refreshes the row-count hint.
  */
@@ -923,8 +1040,10 @@ function renderTable(rows) {
     return;
   }
 
+  const ordered = sortState.index < 0 ? rows : sortRows(rows, sortState.index, sortState.dir);
+
   const fragment = document.createDocumentFragment();
-  for (const record of rows) {
+  for (const record of ordered) {
     const row = document.createElement('tr');
     const href = rowHref(record);
     if (href) row.className = 'row-linked';
@@ -957,6 +1076,111 @@ function renderTable(rows) {
 
   body.appendChild(fragment);
   setHint(rows.length);
+}
+
+/* ---------- Sorting the analysis table: one header click, one order ---------- */
+
+/**
+ * Input: the table's records, a column index and 'asc' or 'desc'.
+ * Output: a new array holding the same records in that order.
+ * Action: reads each record's value for that column with pick() — a 'number' column compares
+ *         numbers (a numeric string is read as a number), any other column compares text
+ *         through TEXT_ORDER. A blank cell sinks to the bottom whichever way the sort runs, and
+ *         so does a figure that cannot be read, while two equal values keep the order the API
+ *         sent them in.
+ * Role: the whole ordering rule behind a header click — pure, so a probe can call it directly.
+ */
+function sortRows(rows, index, direction) {
+  const column = COLUMNS[index];
+  if (!column) return rows.slice();
+
+  const step = direction === 'desc' ? -1 : 1;
+  const keyed = rows.map(function (record, order) {
+    const value = pick(record, column.keys);
+    return { record: record, order: order, value: value, blank: asText(value) === EMPTY };
+  });
+
+  keyed.sort(function (left, right) {
+    if (left.blank !== right.blank) return left.blank ? 1 : -1;   // blanks last, both ways
+    if (left.blank) return left.order - right.order;
+
+    let difference = 0;
+    if (column.sort === 'number') {
+      const mine = toNumber(left.value);
+      const theirs = toNumber(right.value);
+      if (mine === null || theirs === null) {
+        if (mine === theirs) return left.order - right.order;
+        return mine === null ? 1 : -1;                            // an unreadable figure sinks too
+      }
+      difference = mine - theirs;
+    } else {
+      difference = TEXT_ORDER.compare(String(left.value), String(right.value));
+    }
+
+    return difference ? difference * step : left.order - right.order;
+  });
+
+  return keyed.map(function (item) { return item.record; });
+}
+
+/**
+ * Input: nothing (reads sortState).
+ * Output: none.
+ * Action: writes aria-sort on every sortable head — 'ascending' or 'descending' on the column
+ *         the table is ordered by, 'none' on the others.
+ * Role: the one place the sort state is published, and the stylesheet keys the arrow off this
+ *       same attribute, so what a screen reader announces and what the eye sees never drift.
+ */
+function markSort() {
+  const heads = document.querySelectorAll('.data-table thead th');
+  for (let index = 0; index < heads.length; index += 1) {
+    if (!COLUMNS[index] || !COLUMNS[index].sort) continue;
+    const sorted = index === sortState.index;
+    heads[index].setAttribute('aria-sort', sorted
+      ? (sortState.dir === 'asc' ? 'ascending' : 'descending')
+      : 'none');
+  }
+}
+
+/**
+ * Input: the index of the column whose header was pressed.
+ * Output: none.
+ * Action: orders the table by that column — a first press in the column's own direction (a
+ *         name or symbol A→Z and 0→9, a score or ratio biggest first, the rank with the best
+ *         grade on top), a second press on the same header flipping it — then re-draws the rows
+ *         from the records already in hand and marks the header.
+ * Role: everything a header click does; the read is never repeated, so sorting stays local.
+ */
+function sortByColumn(index) {
+  const column = COLUMNS[index];
+  if (!column || !column.sort) return;
+
+  const again = sortState.index === index;
+  sortState = {
+    index: index,
+    dir: again ? (sortState.dir === 'asc' ? 'desc' : 'asc') : column.dir
+  };
+
+  renderTable(companyRows);
+  markSort();
+}
+
+/**
+ * Input: a click anywhere inside the analysis table's head (delegated from the <thead> row).
+ * Output: none.
+ * Action: finds the header cell the click landed in and hands its index to sortByColumn();
+ *         a click outside a header cell is ignored.
+ * Role: one listener for the eight headers — the head is static markup, so it outlives every
+ *       re-draw of the body; the button in each cell also gives the keyboard Enter and Space.
+ */
+function handleSortClick(event) {
+  if (!(event.target instanceof Element)) return;
+
+  const button = event.target.closest('.sort-btn');
+  const cell = button ? button.closest('th') : null;
+  if (!cell || !cell.parentNode) return;
+
+  sortByColumn(Array.prototype.indexOf.call(cell.parentNode.children, cell));
 }
 
 /**
@@ -1340,15 +1564,16 @@ async function loadUser() {
 /**
  * Input: none.
  * Output: none.
- * Action: GETs the company list, renders it, sends the visitor to login.html on
- *         401/403, and shows an error row with a retry button when the endpoint is
- *         missing or unreachable.
- * Role: main data loader for the analysis table.
+ * Action: GETs the company list, keeps the records in companyRows (a header click re-draws
+ *         them from there), renders it, sends the visitor to login.html on 401/403, and shows
+ *         an error row with a retry button when the endpoint is missing or unreachable.
+ * Role: main data loader for the analysis table — the only read of /companies on the page.
  */
 async function loadCompanies() {
   showState('Loading companies\u2026', false);
   try {
-    renderTable(toRows(await fetchJson(ENDPOINTS.companies)));
+    companyRows = toRows(await fetchJson(ENDPOINTS.companies));
+    renderTable(companyRows);
   } catch (error) {
     if (isSignedOut(error)) {
       leaveForSignIn();
@@ -1455,8 +1680,9 @@ function handleViewClick(event) {
  * Action: starts the username and table reads in parallel, reads the two suggestion lists up
  *         front (the "View company" state depends on them), keeps that link in step with the
  *         textbox, fills the suggestion dropdown on the first keystroke (or on ArrowDown),
- *         wires the link's click guard, the table body's row click (a row opens its
- *         company's file) and the sign-out button to signOut().
+ *         wires the link's click guard, the table head's sort click (a column name orders the
+ *         rows), the table body's row click (a row opens its company's file) and the sign-out
+ *         button to signOut().
  * Role: single entry point for the page.
  */
 function init() {
@@ -1481,6 +1707,11 @@ function init() {
 
   const viewLink = document.getElementById('view-company');
   if (viewLink) viewLink.addEventListener('click', handleViewClick);
+
+  // The head is static markup, so this one listener serves all eight column buttons and
+  // outlives every re-draw of the body below it.
+  const tableHead = document.querySelector('.data-table thead');
+  if (tableHead) tableHead.addEventListener('click', handleSortClick);
 
   const tableBody = document.getElementById('companies-body');
   if (tableBody) tableBody.addEventListener('click', handleRowClick);
