@@ -224,6 +224,18 @@
      stop accepting input, so the sheet never pretends it is going somewhere. */
   .name-box[disabled] { opacity: .55; cursor: not-allowed; }
 
+  /* A name or symbol no company on file wears: the box and the line under it both go red, so
+     the refusal is visible in the field the visitor is looking at and in the sentence that
+     names it. It is written after the :focus rule on purpose — the refusal focuses the box,
+     and the red frame has to survive that. */
+  .name-box[data-state="invalid"] {
+    border-color: var(--danger);
+    background: #fdeaea;
+    box-shadow: 0 0 0 4px rgba(180, 35, 42, .16);
+  }
+
+  .name-box[data-state="invalid"]:hover { background: #fbe2e2; }
+
   /* ---------- Suggestion dropdown: the dashboard's list, hanging under the box ----------
      The wrapper is only the dropdown's anchor — it holds the box and nothing else, so the
      absolutely positioned list can sit 10px below it, square with both edges. The list is
@@ -408,8 +420,9 @@
     The box carries the dashboard's typeahead: the first keystroke (or ArrowDown) draws the
     names and symbols from /all-names and /all-symbols that start with what has been typed,
     clicking one or pressing Enter on it fills the box, and Enter with no row highlighted
-    submits the sheet. The list is only an aid — a name it has never heard of is still
-    allowed through, because the update page, not this sheet, decides what exists.
+    submits the sheet. That list is also Next's rule: the sheet accepts only a name or symbol
+    the two lists hold, because the page behind Next can only update a company that is on file
+    — anything else is answered in red under the box, without leaving this page.
   -->
   <section class="card" aria-labelledby="ask-title">
     <h1 class="ask" id="ask-title">Enter the name of the company you want to update</h1>
@@ -763,6 +776,54 @@ function showHint(message, state) {
 }
 
 /**
+ * Input: none (it re-reads ?type=).
+ * Output: the line under the box when nothing is wrong.
+ * Action: names the page Next will open, or explains that the sheet has nowhere to go when
+ *         ?type= is missing or unusable.
+ * Role: the sheet's resting voice — applyType() writes it on load, and changing the text or
+ *       coming back from a refusal puts it back, so a red line never outlives the mistake it
+ *       named.
+ */
+function idleHint() {
+  const type = readType();
+  if (!type) {
+    return 'This page was opened without a usable update type, so there is nowhere to go ' +
+      '\u2014 start from Update analysis or Update score on the dashboard.';
+  }
+  return 'Then press Next to open ' + type + PAGE_SUFFIX + '.';
+}
+
+/**
+ * Input: the text the box held when Next was pressed ('' when it held nothing).
+ * Output: the sentence the line under the box shows in red.
+ * Action: names the value as typed, or says the box is empty — the one wording behind both
+ *         refusals, so they can never drift apart in tone or spelling.
+ * Role: the analyst's half of Next's gate: the exact words naming what to fix, e.g.
+ *       `Please enter a valid company name or symbol. Apple is not on file`.
+ */
+function refusalHint(name) {
+  if (!name) return 'Type the name of the company you want to update first.';
+  return 'Please enter a valid company name or symbol. ' + name + ' is not on file ' +
+    '\u2014 start typing and pick one from the list.';
+}
+
+/**
+ * Input: none.
+ * Output: none.
+ * Action: takes the red frame off the box and writes the resting line back under it.
+ * Role: keeps a stale "X is not on file" from sitting under a box the visitor is already
+ *       rewriting, without waiting for the next press of Next — nothing happens at all unless
+ *       the box is marked, so it is free to call on every keystroke.
+ */
+function clearRefusal() {
+  const box = document.getElementById('company-name');
+  if (!box || box.dataset.state !== 'invalid') return;
+
+  delete box.dataset.state;
+  showHint(idleHint());
+}
+
+/**
  * Input: none.
  * Output: none.
  * Action: GETs /getuser and writes its user_name into the welcome line as "Welcome, <user>";
@@ -830,8 +891,11 @@ async function signOut() {
 /** The rows currently drawn in the dropdown, and which one the keyboard sits on (-1 = none). */
 let drawnSuggestions = [];
 let activeSuggestion = -1;
-/** The merged [{value, kind}] list, kept after the first read so typing stays local. */
-let suggestionCache = null;
+/** The merged { items, complete } answer of /all-names + /all-symbols, kept after the first
+    read so typing — and Next's own check — stay local. */
+let directoryCache = null;
+/** True while a press of Next is waiting on that read, so a second press changes nothing. */
+let checking = false;
 
 /**
  * Input: raw JSON payload from /all-names or /all-symbols.
@@ -872,36 +936,71 @@ function toStrings(payload) {
 
 /**
  * Input: none.
- * Output: a promise of [{ value, kind }] — names first, then symbols, one entry per value.
- * Action: reads /all-names and /all-symbols on the first call and caches the merged result;
- *         a list that fails counts as empty, and an empty merge is not cached, so a later
- *         keystroke asks again.
- * Role: the page's only read of the two lists — everything after it is local filtering. It
- *       runs on the first keystroke rather than at load, because a visitor who types a name
- *       straight through never needs the list at all.
+ * Output: a promise of { items: [{ value, kind }], complete: true|false } — names first,
+ *         then symbols, one entry per value.
+ * Action: reads /all-names and /all-symbols on the first call and caches the merged answer;
+ *         `complete` is true only when *both* lists answered, and an empty merge is not
+ *         cached, so a later keystroke asks again.
+ * Role: the page's only read of the two lists. Everything after it is local, and both the
+ *       dropdown and Next's "is this a company on file?" test read this one answer, so the
+ *       rows a visitor can pick and the names Next accepts can never disagree. It runs on the
+ *       first keystroke (or the first press of Next), because a visitor who picks from the
+ *       list costs one read and a visitor who never needs the list costs none.
+ */
+function loadDirectory() {
+  if (directoryCache) return directoryCache;
+
+  const read = (path) => fetchJson(path)
+    .then((payload) => ({ ok: true, words: toStrings(payload) }))
+    .catch(() => ({ ok: false, words: [] }));
+
+  directoryCache = Promise.all([read(ENDPOINTS.names), read(ENDPOINTS.symbols)])
+    .then(([names, symbols]) => {
+      const items = [];
+      const seen = new Set();
+      for (const [kind, words] of [['name', names.words], ['symbol', symbols.words]]) {
+        for (const value of words) {
+          const key = value.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          items.push({ value: value, kind: kind });
+        }
+      }
+      const answer = { items: items, complete: names.ok && symbols.ok };
+      if (!items.length) directoryCache = null;   // nothing came back: ask again next time
+      return answer;
+    });
+
+  return directoryCache;
+}
+
+/**
+ * Input: none.
+ * Output: a promise of [{ value, kind }] — the rows the dropdown draws.
+ * Action: hands out the merged list of loadDirectory() and nothing else.
+ * Role: keeps the typeahead's call sites reading like the list they draw, while the one read
+ *       (and its cache) stays in loadDirectory().
  */
 function loadSuggestions() {
-  if (suggestionCache) return suggestionCache;
+  return loadDirectory().then((directory) => directory.items);
+}
 
-  suggestionCache = Promise.all([
-    fetchJson(ENDPOINTS.names).then(toStrings).catch(() => []),
-    fetchJson(ENDPOINTS.symbols).then(toStrings).catch(() => [])
-  ]).then(([names, symbols]) => {
-    const items = [];
-    const seen = new Set();
-    for (const [kind, words] of [['name', names], ['symbol', symbols]]) {
-      for (const value of words) {
-        const key = value.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        items.push({ value: value, kind: kind });
-      }
-    }
-    if (!items.length) suggestionCache = null;   // nothing came back: ask again next time
-    return items;
-  });
+/**
+ * Input: the merged list and the text in the box.
+ * Output: the matching { value, kind } entry, or null when nothing on file wears that name.
+ * Action: compares case-insensitively after cleanName() has taken the ends and the repeated
+ *         spaces off, so "tencent", " Tencent " and "Tencent" are the same company.
+ * Role: Next's one test of "is this a real company name or symbol?" — over exactly the list
+ *       the dropdown draws, so a row a visitor could have picked always passes.
+ */
+function findCompany(items, text) {
+  const wanted = cleanName(text).toLowerCase();
+  if (!wanted) return null;
 
-  return suggestionCache;
+  for (const item of items) {
+    if (item.value.toLowerCase() === wanted) return item;
+  }
+  return null;
 }
 
 /**
@@ -1135,24 +1234,69 @@ function applyType() {
       box.placeholder = 'No update chosen';
     }
     if (next) next.disabled = true;
-    showHint('This page was opened without a usable update type, so there is nowhere to go ' +
-      '\u2014 start from Update analysis or Update score on the dashboard.', 'error');
+    showHint(idleHint(), 'error');
     return;
   }
 
-  showHint('Then press Next to open ' + type + PAGE_SUFFIX + '.', 'info');
+  showHint(idleHint(), 'info');
+}
+
+/**
+ * Input: the company name or symbol as typed (already cleanName()d, and never empty).
+ * Output: a promise of true when Next may go on, false when the sheet stays where it is.
+ * Action: reads the two lists through loadDirectory() and asks findCompany() whether the text
+ *         is one of them. A miss closes the dropdown, turns the line under the box red with
+ *         the value named, marks the box, and drops the caret back in it with the text
+ *         selected — then answers false. When either list could not be read nothing has been
+ *         disproved, so it answers true and lets the page behind Next do its own lookup. Next
+ *         is disabled while the answer is in, and a second press in that window is ignored.
+ * Role: the gate between the box and the next page. It is the only reason a name ever fails to
+ *       travel, and it reads the very list the dropdown draws, so anything a visitor could
+ *       have picked always passes.
+ */
+async function confirmCompany(name) {
+  if (checking) return false;
+  checking = true;
+
+  const box = document.getElementById('company-name');
+  const next = document.getElementById('next-button');
+  const wasDisabled = Boolean(next && next.disabled);
+  if (next) next.disabled = true;
+  // Only worth saying when the lists still have to be read; a second press is answered from
+  // the cache and lands on its verdict in the same frame.
+  if (!directoryCache) showHint('Checking whether ' + name + ' is on file\u2026');
+
+  try {
+    const directory = await loadDirectory();
+    if (!directory.complete) return true;          // unreadable: nothing was disproved
+    if (findCompany(directory.items, name)) return true;
+
+    closeSuggestions();
+    showHint(refusalHint(name), 'error');
+    if (box) {
+      box.dataset.state = 'invalid';
+      box.focus();
+      box.select();
+    }
+    return false;
+  } finally {
+    checking = false;
+    if (next && !wasDisabled) next.disabled = false;
+  }
 }
 
 /**
  * Input: the form's submit event (a click on Next, or Enter in the box).
  * Output: none (it either navigates or explains itself).
- * Action: keeps the browser from posting the form, reads the flow and the cleaned name, and
- *         makes them into <type>.html?company_name=<name> with location.assign() — so Back
- *         returns to this filled-in box. A blank name, or no usable type, is answered in the
- *         line under the box instead of by leaving the page.
- * Role: the one transition this page has, and the reason it exists at all.
+ * Action: keeps the browser from posting the form, reads the flow and the cleaned name,
+ *         refuses a blank box or no usable type, waits for confirmCompany() to say the name is
+ *         one the API has on file, and only then makes the pair into
+ *         <type>.html?company_name=<name> with location.assign() — so Back returns to this
+ *         filled-in box.
+ * Role: the one transition this page has. Every refusal is a sentence under the box plus a
+ *       page that has not moved, which is the whole of this sheet's error handling.
  */
-function goNext(event) {
+async function goNext(event) {
   if (event) event.preventDefault();
 
   const type = readType();
@@ -1160,16 +1304,20 @@ function goNext(event) {
   const name = cleanName(box ? box.value : '');
 
   if (!type) {
-    showHint('This page was opened without a usable update type, so there is nowhere to go ' +
-      '\u2014 start from Update analysis or Update score on the dashboard.', 'error');
+    showHint(idleHint(), 'error');
     return;
   }
 
   if (!name) {
-    showHint('Type the name of the company you want to update first.', 'error');
-    if (box) box.focus();
+    showHint(refusalHint(''), 'error');
+    if (box) {
+      box.dataset.state = 'invalid';
+      box.focus();
+    }
     return;
   }
+
+  if (!(await confirmCompany(name))) return;
 
   window.location.assign(nextHref(type, name));
 }
@@ -1179,9 +1327,10 @@ function goNext(event) {
  * Output: none.
  * Action: applies ?type=, starts the username read, wires the form's submit, the box's
  *         typeahead (keystroke, blur, arrow keys) and the sign-out button, and puts the caret
- *         in the name box when the sheet is usable. The two suggestion lists are *not* read
- *         here: the first keystroke draws them, so a visitor who types a name straight through
- *         to Next costs no extra request.
+ *         in the name box when the sheet is usable. A keystroke also clears a refusal still
+ *         standing from the last press of Next. The two suggestion lists are *not* read here:
+ *         the first keystroke (or the first press of Next) reads them once, so a visitor who
+ *         signs in and leaves again costs no request.
  * Role: single entry point for the page.
  */
 function init() {
@@ -1196,7 +1345,10 @@ function init() {
 
   const box = document.getElementById('company-name');
   if (box) {
-    box.addEventListener('input', refreshSuggestions);
+    box.addEventListener('input', () => {
+      clearRefusal();            // the text is changing: the old refusal no longer describes it
+      refreshSuggestions();
+    });
     // No 'focus' listener on purpose: clicking the box only puts the caret in it. The dropdown
     // opens on the first keystroke (and on ArrowDown, which asks for it by name), exactly as on
     // the dashboard, so a visitor who only wants to paste or read the field is not covered.
