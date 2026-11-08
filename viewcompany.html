@@ -332,7 +332,12 @@
     box-shadow: inset 0 -1px 0 var(--line);
   }
 
-  .mini-table th:first-child { width: 46%; }
+  /* The date column is as narrow as its own content: width:1% plus the nowrap
+     the cells already carry makes the browser shrink it to the widest stamp
+     ("2026/10/29", or "2026/10/29 22:00" when a time rides along) and give every
+     spare pixel to the html column. So a YYYY/MM/DD date always fits and the
+     column no longer eats 46% of the table. */
+  .mini-table th:first-child { width: 1%; }
 
   .mini-date { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
