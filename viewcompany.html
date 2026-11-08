@@ -1286,8 +1286,8 @@ function renderNote(record) {
 }
 
 /**
- * Input: one history entry ({date, path}) from toHistories(), the section key the
- *        document belongs to, and the current company symbol.
+ * Input: one history entry ({date, path}) from toHistories(), the section's display
+ *        label (e.g. "Industry Map"), and the current company symbol.
  * Output: a <tr> with the date, a link to the report and (when it can be deleted) a red
  *         Delete button.
  * Action: formats the date; the html cell links to API_BASE + /companies/<the stored
@@ -1300,7 +1300,7 @@ function renderNote(record) {
  *         plain text with no button.
  * Role: the growing row of a mini table, and the only place the page can delete a file.
  */
-function buildEntryRow(entry, sectionKey, symbol) {
+function buildEntryRow(entry, fieldLabel, symbol) {
   const row = document.createElement('tr');
 
   const date = document.createElement('td');
@@ -1339,7 +1339,7 @@ function buildEntryRow(entry, sectionKey, symbol) {
     remove.textContent = 'Delete';
     remove.title = 'Delete ' + name;
     remove.setAttribute('aria-label', 'Delete ' + name);
-    remove.addEventListener('click', () => handleDeleteAnalysis(symbol, path, sectionKey, remove));
+    remove.addEventListener('click', () => handleDeleteAnalysis(symbol, path, fieldLabel, remove));
     holder.appendChild(remove);
   }
 
@@ -1391,7 +1391,7 @@ function buildMiniTable(section, entries, symbol) {
 
   const body = document.createElement('tbody');
   if (entries.length) {
-    for (const entry of entries) body.appendChild(buildEntryRow(entry, section.key, symbol));
+    for (const entry of entries) body.appendChild(buildEntryRow(entry, section.label, symbol));
   } else {
     const row = document.createElement('tr');
     const date = document.createElement('td');
@@ -1457,17 +1457,18 @@ function openDeleteConfirm() {
 
 /**
  * Input: the current company symbol, the document's stored path
- *        ("/app/company_analysis/<symbol>/<file base name>"), the section key the document
- *        belongs to, and the Delete button that was pressed.
+ *        ("/app/company_analysis/<symbol>/<file base name>"), the section's display label
+ *        (e.g. "Industry Map"), and the Delete button that was pressed.
  * Output: none.
  * Action: asks openDeleteConfirm() first — a No (or Escape / scrim click) returns without
  *         touching the network or the row. A Yes disables the button (label "Deleting…"),
  *         POSTs urlencoded symbol / file_name / field_name to /deleteanalysis with
  *         credentials: 'include' so the session cookie travels — file_name is that full stored
- *         path (the API keys the document on the whole path, not the base name alone), while
- *         the note names the base name — and on success re-reads the company so the deleted
- *         row is gone. A 401/403 goes to login.html; any other failure is explained in the
- *         note and the button is re-enabled.
+ *         path (the API keys the document on the whole path, not the base name alone) and
+ *         field_name is the section's display label (e.g. "Industry Map") — while the note
+ *         names the base name — and on success re-reads the company so the deleted row is
+ *         gone. A 401/403 goes to login.html; any other failure is explained in the note and
+ *         the button is re-enabled.
  * Role: the page's only destructive write — what a mini table's red Delete does.
  */
 async function handleDeleteAnalysis(symbol, filePath, fieldName, button) {
