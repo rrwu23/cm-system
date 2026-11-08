@@ -890,6 +890,26 @@ function formatStamp(value) {
 }
 
 /**
+ * Input: a mini-table stamp - the raw entry.date ("2026-11-08",
+ *        "2026-10-29T22:00:09.456275Z", or a slashed "2026/11/08").
+ * Output: a number that orders two stamps chronologically (YYYYMMDDHHMM as digits), or null
+ *         when the value carries no readable date.
+ * Action: reads year, month, day and the optional hour/minute with a regex - no Date object, so
+ *         no timezone shift - and pads single digits, so "2026/1/5" sorts as "20260105".
+ * Role: the sort key behind sortEntries(), the companion to formatStamp() which shows the same
+ *       value: one reads the stamp to compare it, the other to print it.
+ */
+function dateKey(value) {
+  const text = asText(value);
+  const match = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T ](\d{1,2}):(\d{2}))?/.exec(text);
+  if (!match) return null;
+  const pad = (part) => String(part).padStart(2, '0');
+  return Number(
+    match[1] + pad(match[2]) + pad(match[3]) + pad(match[4] || 0) + pad(match[5] || 0)
+  );
+}
+
+/**
  * Input: a stored document path ("/app/company_analysis/AAPL/moat_analysis.html").
  * Output: the file's own name ("moat_analysis.html"), or the em-dash placeholder.
  * Action: keeps the last path segment and strips any query string.
@@ -1025,6 +1045,26 @@ function toEntry(item, rowDate, recordDate) {
 }
 
 /**
+ * Input: one section's array of {date, path} entries (the shape toEntry() returns).
+ * Output: none - the array is reordered in place.
+ * Action: sorts newest first on dateKey(entry.date). A row with no readable date sinks below
+ *         every dated row; two rows with the same stamp keep the upload order they arrived in
+ *         (Array.prototype.sort is stable), so deleting and re-rendering never shuffles ties.
+ * Role: the ordering every mini table is drawn in, so the latest report is the first line -
+ *       c4.html (2026/11/08) sits above an older 5.腾讯…-20261015.html (2026/10/31).
+ */
+function sortEntries(entries) {
+  entries.sort(function (a, b) {
+    const left = dateKey(a.date);
+    const right = dateKey(b.date);
+    if (left === null && right === null) return 0;
+    if (left === null) return 1;
+    if (right === null) return -1;
+    return right - left;
+  });
+}
+
+/**
  * Input: one company record.
  * Output: an object keyed by the thirteen SECTIONS keys, each holding an array of
  *         {date, path} entries - every array empty when nothing is stored.
@@ -1040,7 +1080,8 @@ function toEntry(item, rowDate, recordDate) {
  *         its own row, so a section reads as the whole history - twelve uploads of one
  *         document are twelve rows - and never as one row per distinct file.
  * Role: the single read of the report list; renderReports() then draws one mini table
- *       per section, so the tables grow as the company is re-analysed.
+ *       per section, so the tables grow as the company is re-analysed. Each section leaves
+ *       here newest first (sortEntries), so the latest upload is the first row of its table.
  */
 function toHistories(record) {
   const history = {};
@@ -1091,6 +1132,10 @@ function toHistories(record) {
       }
     }
   }
+
+  // Newest report first in every section (see sortEntries) - the tables read like a diary,
+  // so a report added today leads its section whatever order the API returned it in.
+  for (const key of Object.keys(history)) sortEntries(history[key]);
 
   return history;
 }
