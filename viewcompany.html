@@ -357,6 +357,117 @@
     white-space: normal;
   }
 
+  /* The html cell lays its document name and its Delete button on one line; the name
+     takes the slack and the button keeps its own size to the right of it. */
+  .mini-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .mini-file { min-width: 0; }
+
+  /* The red Delete: a quiet outline that fills solid on hover. */
+  .mini-delete {
+    flex: none;
+    padding: 3px 11px;
+    border: 1px solid #e6b4b0;
+    border-radius: 999px;
+    background: var(--surface);
+    color: #b3261e;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease;
+  }
+
+  .mini-delete:hover {
+    background: #b3261e;
+    border-color: #b3261e;
+    color: #fff;
+  }
+
+  .mini-delete:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .mini-delete[disabled] { opacity: .55; cursor: progress; }
+
+  /* ---------- Delete confirmation: a scrim + one reused sheet (openDeleteConfirm) ---------- */
+  .confirm-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(23, 35, 59, .45);
+  }
+
+  /* Author display:flex would otherwise beat the [hidden] default, so spell it out. */
+  .confirm-scrim[hidden] { display: none; }
+
+  .confirm-card {
+    width: min(430px, 100%);
+    padding: 24px 24px 20px;
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md), 0 28px 70px -34px rgba(23, 35, 59, .85);
+  }
+
+  .confirm-title {
+    margin: 0 0 8px;
+    color: var(--ink);
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .confirm-text {
+    margin: 0 0 20px;
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+
+  .confirm-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  .confirm-btn {
+    min-height: 40px;
+    padding: 0 22px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+  }
+
+  .confirm-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .confirm-yes {
+    border-color: #b3261e;
+    background: #b3261e;
+    color: #fff;
+  }
+
+  .confirm-yes:hover { background: #93201a; border-color: #93201a; }
+
+  .confirm-no {
+    background: var(--surface);
+    color: var(--ink-soft);
+  }
+
+  .confirm-no:hover { background: #f1f5fc; color: var(--ink); }
+
   /* ---------- Picker: only shown when the URL named no company ---------- */
   .picker-panel {
     margin: 0 0 40px;
@@ -526,6 +637,23 @@
   <section class="reports" id="reports" aria-label="Analysis history"></section>
 </main>
 
+<!-- Delete confirmation: one reused sheet over a scrim, hidden until a mini table's Delete
+     button asks for it. Yes posts /deleteanalysis; No (or Esc, or a click on the scrim) just
+     closes it. Shown and answered by openDeleteConfirm(). -->
+<div class="confirm-scrim" id="delete-confirm" hidden>
+  <div class="confirm-card" role="dialog" aria-modal="true"
+       aria-labelledby="delete-confirm-title" aria-describedby="delete-confirm-text">
+    <h2 class="confirm-title" id="delete-confirm-title">Delete analysis file</h2>
+    <p class="confirm-text" id="delete-confirm-text">
+      Are you sure to delete this analysis file, the file will be gone forever on the server.
+    </p>
+    <div class="confirm-actions">
+      <button type="button" class="confirm-btn confirm-yes" id="delete-confirm-yes">Yes</button>
+      <button type="button" class="confirm-btn confirm-no" id="delete-confirm-no">No</button>
+    </div>
+  </div>
+</div>
+
 
 <script>
 /**
@@ -584,6 +712,8 @@ const ENDPOINTS = {
   // path, so encodePath() drops its leading slash and encodes each segment.
   document: (path) => '/companies' + encodePath(path),
   logout: '/logout',
+  // Delete one stored report: POST with form fields symbol, file_name and field_name.
+  deleteanalysis: '/deleteanalysis',
   // A company name is a key on that same one-company route: /companies-s/Tencent answers the
   // record /companies-s/0700.HK answers, so ?name=… costs one request, not a list read first.
   // (/companies/<name> is the *document* route — it answered 404 for a name.)
@@ -1156,15 +1286,20 @@ function renderNote(record) {
 }
 
 /**
- * Input: one history entry ({date, path}) from toHistories().
- * Output: a <tr> with the date and a link to the report.
- * Action: formats the date; the html cell links to API_BASE + /companies/<the stored path>,
- *         which serves that document as it was uploaded (the API sandboxes it, so it cannot run
- *         scripts or reach the session cookie), and names the file. The full stored path goes in
- *         the tooltip. An entry with no usable path stays plain text.
- * Role: the growing row of a mini table.
+ * Input: one history entry ({date, path}) from toHistories(), the section key the
+ *        document belongs to, and the current company symbol.
+ * Output: a <tr> with the date, a link to the report and (when it can be deleted) a red
+ *         Delete button.
+ * Action: formats the date; the html cell links to API_BASE + /companies/<the stored
+ *         path>, which serves that document as it was uploaded (the API sandboxes it, so it
+ *         cannot run scripts or reach the session cookie), and names the file. The full
+ *         stored path goes in the link's tooltip. Beside the name, a red Delete button asks
+ *         handleDeleteAnalysis() for confirmation before anything is posted. An entry with
+ *         no usable path — or a record with no symbol to key the delete on — stays plain
+ *         text with no button.
+ * Role: the growing row of a mini table, and the only place the page can delete a file.
  */
-function buildEntryRow(entry) {
+function buildEntryRow(entry, sectionKey, symbol) {
   const row = document.createElement('tr');
 
   const date = document.createElement('td');
@@ -1176,6 +1311,12 @@ function buildEntryRow(entry) {
   const name = fileName(entry.path);
   const path = asText(entry.path);
 
+  const holder = document.createElement('div');
+  holder.className = 'mini-cell';
+
+  const file = document.createElement('span');
+  file.className = 'mini-file';
+
   if (path !== EMPTY) {
     const link = document.createElement('a');
     link.href = API_BASE + ENDPOINTS.document(path);
@@ -1183,17 +1324,31 @@ function buildEntryRow(entry) {
     link.rel = 'noopener';
     link.title = path;
     link.textContent = name;
-    cell.appendChild(link);
+    file.appendChild(link);
   } else {
-    cell.textContent = name;
+    file.textContent = name;
+  }
+  holder.appendChild(file);
+
+  // Only a real document on a company we can name can be deleted.
+  if (path !== EMPTY && symbol !== EMPTY) {
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'mini-delete';
+    remove.textContent = 'Delete';
+    remove.title = 'Delete ' + name;
+    remove.setAttribute('aria-label', 'Delete ' + name);
+    remove.addEventListener('click', () => handleDeleteAnalysis(symbol, name, sectionKey, remove));
+    holder.appendChild(remove);
   }
 
+  cell.appendChild(holder);
   row.append(date, cell);
   return row;
 }
 
 /**
- * Input: one section definition and its entries.
+ * Input: one section definition, its entries, and the current company symbol.
  * Output: a .mini-wrap <div> holding the section's date/html table.
  * Action: builds thead (date | html) once, then one row per entry - every stored
  *         document, however long the history - or a single muted "Not uploaded yet"
@@ -1204,7 +1359,7 @@ function buildEntryRow(entry) {
  * Role: the mini table under each analysis label; it holds the whole history and the
  *       window over it is fixed, so a dozen uploads cost the page three rows.
  */
-function buildMiniTable(section, entries) {
+function buildMiniTable(section, entries, symbol) {
   const wrap = document.createElement('div');
   wrap.className = 'mini-wrap';
   wrap.tabIndex = 0;
@@ -1235,7 +1390,7 @@ function buildMiniTable(section, entries) {
 
   const body = document.createElement('tbody');
   if (entries.length) {
-    for (const entry of entries) body.appendChild(buildEntryRow(entry));
+    for (const entry of entries) body.appendChild(buildEntryRow(entry, section.key, symbol));
   } else {
     const row = document.createElement('tr');
     const date = document.createElement('td');
@@ -1254,13 +1409,115 @@ function buildMiniTable(section, entries) {
 }
 
 /**
+ * Input: none.
+ * Output: a Promise that resolves true when the analyst presses Yes, false on No,
+ *         Escape or a click on the scrim.
+ * Action: unhides #delete-confirm, remembers the element that had focus, moves focus to
+ *         the No button, and settles the promise from the two buttons or a dismissal —
+ *         removing every listener and returning focus when it closes. One static sheet is
+ *         reused for every row, so no per-row listeners accumulate.
+ * Role: the single "are you sure?" gate in front of a delete; nothing is posted until it
+ *       answers true.
+ */
+function openDeleteConfirm() {
+  const scrim = document.getElementById('delete-confirm');
+  const yes = document.getElementById('delete-confirm-yes');
+  const no = document.getElementById('delete-confirm-no');
+
+  if (!scrim || !yes || !no) return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    const returnFocus = document.activeElement;
+
+    function close(answer) {
+      scrim.hidden = true;
+      yes.removeEventListener('click', onYes);
+      no.removeEventListener('click', onNo);
+      scrim.removeEventListener('click', onScrim);
+      document.removeEventListener('keydown', onKey);
+      if (returnFocus && typeof returnFocus.focus === 'function') returnFocus.focus();
+      resolve(answer);
+    }
+
+    function onYes() { close(true); }
+    function onNo() { close(false); }
+    function onScrim(event) { if (event.target === scrim) close(false); }
+    function onKey(event) { if (event.key === 'Escape') close(false); }
+
+    yes.addEventListener('click', onYes);
+    no.addEventListener('click', onNo);
+    scrim.addEventListener('click', onScrim);
+    document.addEventListener('keydown', onKey);
+
+    scrim.hidden = false;
+    no.focus();
+  });
+}
+
+/**
+ * Input: the current company symbol, the file's base name, the section key the document
+ *        belongs to, and the Delete button that was pressed.
+ * Output: none.
+ * Action: asks openDeleteConfirm() first — a No (or Escape / scrim click) returns without
+ *         touching the network or the row. A Yes disables the button (label "Deleting…"),
+ *         POSTs urlencoded symbol / file_name / field_name to /deleteanalysis with
+ *         credentials: 'include' so the session cookie travels, and on success re-reads the
+ *         company so the deleted row is gone. A 401/403 goes to login.html; any other
+ *         failure is explained in the note and the button is re-enabled.
+ * Role: the page's only destructive write — what a mini table's red Delete does.
+ */
+async function handleDeleteAnalysis(symbol, fileNameText, fieldName, button) {
+  const confirmed = await openDeleteConfirm();
+  if (!confirmed) return;
+
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Deleting\u2026';
+
+  try {
+    const body = new URLSearchParams();
+    body.set('symbol', symbol);
+    body.set('file_name', fileNameText);
+    body.set('field_name', fieldName);
+
+    const response = await fetch(API_BASE + ENDPOINTS.deleteanalysis, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include',
+      body
+    });
+
+    if (!response.ok) {
+      const error = new Error('HTTP ' + response.status);
+      error.status = response.status;
+      throw error;
+    }
+
+    // Accepted: re-read the company so the deleted document's row disappears.
+    await openBySymbol(symbol);
+    setNote('Deleted ' + fileNameText + ' \u2014 the file is gone from the server.');
+  } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+
+    button.disabled = false;
+    button.textContent = original;
+    setNote('Could not delete ' + fileNameText + ' \u2014 ' + describeError(error));
+  }
+}
+
+/**
  * Input: one company record.
  * Output: none.
  * Action: rebuilds #reports as thirteen label + table blocks (SECTIONS order),
  *         greying the label of a section that holds no document. The entries come from
  *         one pass over record.analysis_files (toHistories()), so every stored document
  *         is drawn in its own section's mini table with the date it was added; each row
- *         links to the stored path, so no symbol is needed to open a report.
+ *         links to the stored path, so no symbol is needed to open a report, while the red
+ *         Delete posts the company symbol alongside the file to /deleteanalysis.
  * Role: the body of the page - the part that grows as the company is re-analysed, with
  *       each table scrolled rather than cut when its history passes three rows.
  */
@@ -1271,6 +1528,7 @@ function renderReports(record) {
 
   const fragment = document.createDocumentFragment();
   const history = toHistories(record);
+  const symbol = asText(pick(record, ['symbol', 'ticker', 'code'], 'numerical_value'));
 
   for (const section of SECTIONS) {
     const box = document.createElement('div');
@@ -1283,7 +1541,7 @@ function renderReports(record) {
     const entries = history[section.key] || [];
     if (!entries.length) title.dataset.empty = 'true';
 
-    box.append(title, buildMiniTable(section, entries));
+    box.append(title, buildMiniTable(section, entries, symbol));
     fragment.appendChild(box);
   }
 
