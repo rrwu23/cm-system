@@ -906,6 +906,35 @@ function fileName(path) {
 }
 
 /**
+ * Input: a stored document path ("/app/company_analysis/0700.HK/6. 腾讯控股-护城河打分NEW-20261028.html").
+ * Output: the date written into the file's name as "2026-10-28", or '' when the name has none.
+ * Action: reads the base name (fileName), takes its last run of eight digits - the paper file
+ *         signs each report "-20261028" - and keeps it only when the month and day are in range,
+ *         so an id or a version number that happens to be eight digits is never read as a date.
+ * Role: the date a mini-table row shows. The API's analysis_files list names every document but
+ *       stamps it only inside the file name; the record's own date is the day the company was
+ *       last scored, not the day this report was uploaded, so each row recovers the document's
+ *       own date from the path the response supplies.
+ */
+function dateFromPath(path) {
+  const name = fileName(path);
+  if (name === EMPTY) return '';
+
+  const runs = name.match(/\d{8}/g);
+  if (!runs) return '';
+
+  for (let index = runs.length - 1; index >= 0; index -= 1) {
+    const year = Number(runs[index].slice(0, 4));
+    const month = Number(runs[index].slice(4, 6));
+    const day = Number(runs[index].slice(6, 8));
+    if (year >= 1900 && year <= 2999 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return year + '-' + runs[index].slice(4, 6) + '-' + runs[index].slice(6, 8);
+    }
+  }
+  return '';
+}
+
+/**
  * Input: a stored document path ("/app/company_analysis/0700.HK/6. 腾讯….html").
  * Output: the same path as a URL tail — "/app/company_analysis/0700.HK/6.%20腾讯%E2%80%A6.html",
  *         with a query string or fragment chopped off — or '' when there is no path.
@@ -968,14 +997,16 @@ function readFirst(object, keys) {
  *        the enclosing entry was added.
  * Output: {date, path} with both parts as text, or null when there is no path.
  * Action: accepts a bare path, or an object under any of the usual names for the
- *         document (html / path / file / ...) and the stamp (date / added_at / ...),
- *         falling back to the entry's own date.
+ *         document (html / path / file / ...) and the stamp (date / added_at / ...). The
+ *         date is the document's own stamp when it carries one, else the date written in
+ *         its file name (dateFromPath - the shape the live response sends), else the
+ *         entry's own date.
  * Role: normalises one row of a mini table, whatever shape the API sends.
  */
 function toEntry(item, fallbackDate) {
   if (typeof item === 'string') {
     const path = item.trim();
-    return path ? { date: asText(fallbackDate), path } : null;
+    return path ? { date: asText(dateFromPath(path) || fallbackDate), path } : null;
   }
   if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
 
@@ -983,8 +1014,9 @@ function toEntry(item, fallbackDate) {
   if (asText(path) === EMPTY) return null;
 
   const date = readFirst(item, ENTRY_DATE_KEYS);
+  const stamp = date === undefined ? (dateFromPath(path) || fallbackDate) : date;
   return {
-    date: asText(date === undefined ? fallbackDate : date),
+    date: asText(stamp),
     path: String(path)
   };
 }
@@ -996,8 +1028,9 @@ function toEntry(item, fallbackDate) {
  * Action: walks record.analysis_files once. Each item is one upload: it either names
  *         its own section ({field, path, date}) or maps sections to their documents
  *         ({moat_analysis: "/app/...", date}), and a mapped value may be a list of
- *         documents. A row is stamped with the date it was added - the document's own
- *         stamp, else the item's, else the record's numerical_values.date. A path is
+ *         documents. A row is stamped with the document's own date - its stamp, else the
+ *         date written in its file name (dateFromPath - how the live response stores it),
+ *         else the item's, else the record's numerical_values.date. A path is
  *         only folded away inside the upload that names it twice (the plain key plus
  *         a <field>_history alias); the same path stored again by a later upload keeps
  *         its own row, so a section reads as the whole history - twelve uploads of one
