@@ -33,6 +33,22 @@
   // because the page host only serves GETs.
   const SUBMIT_LABEL = '/addcompany';
 
+  // Submit checks the symbol against Yahoo before it posts anything: the API's daily quote job
+  // fills `current_price` from this same chart feed, so a ticker Yahoo cannot price is a company
+  // the dashboard could only ever show an em dash for. A symbol Yahoo answers with a quote is
+  // posted; one it says it has no data for is refused here and /addcompany is never called.
+  // Both hosts are asked because Yahoo runs the chart API on two and one can answer while the
+  // other is rate-limiting the caller.
+  const YAHOO_HOSTS = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
+  const YAHOO_CHART = '/v8/finance/chart/';
+  const YAHOO_QUERY = '?range=1d&interval=1d';
+  const SYMBOL_CHECK_TIMEOUT_MS = 6000;
+  // What a Yahoo ticker looks like: letters and digits, plus the `.` `-` `=` that suffix a market
+  // (0700.HK, BRK-B, EURUSD=X) and the `^` an index starts with (^GSPC), up to MAX_SYMBOL
+  // characters because that is what CompanyIn accepts. Anything else — a pasted company name, a
+  // space, a slash — is refused before a single byte is asked of Yahoo.
+  const SYMBOL_PATTERN = /^[\^A-Za-z0-9][A-Za-z0-9.\-=]{0,31}$/;
+
   // Every analysis box on the sheet is an uploaded .html report, not free text.
   const UPLOAD_FIELDS = [
     'company_profile',
@@ -301,13 +317,164 @@
     return String(value).slice(0, max);
   }
 
+  /* ------------------------------------------------------------ symbol check */
+
+  /**
+   * Input: a symbol as the sheet read it (already trimmed).
+   * Output: true when it is shaped like a Yahoo ticker.
+   * Action: tests SYMBOL_PATTERN and nothing else — no network, no case change.
+   * Role: the cheap half of Submit's gate, so a company name pasted into the Symbol box is
+   *       refused with a message even when Yahoo cannot be reached at all.
+   */
+  function looksLikeSymbol(symbol) {
+    return typeof symbol === 'string' && SYMBOL_PATTERN.test(symbol);
+  }
+
+  /**
+   * Input: the body of a /v8/finance/chart answer.
+   * Output: the price Yahoo holds for that symbol, or null when the body carries none.
+   * Action: reads chart.result[0].meta.regularMarketPrice first, else the last non-null close
+   *         of the one-day series (a closed market still lists yesterday's close).
+   * Role: turns "Yahoo knows this symbol" into the fact that actually matters — a price it can
+   *       retrieve — without hanging the verdict on one optional field.
+   */
+  function readQuote(payload) {
+    const chart = payload && payload.chart;
+    const result = chart && Array.isArray(chart.result) ? chart.result[0] : null;
+    if (!result) return null;
+
+    const meta = result.meta || {};
+    const head = toNumber(meta.regularMarketPrice);
+    if (head !== null) return head;
+
+    const series = result.indicators && Array.isArray(result.indicators.quote)
+      ? result.indicators.quote[0]
+      : null;
+    const closes = series && Array.isArray(series.close)
+      ? series.close.map(function (close) { return toNumber(close); })
+        .filter(function (close) { return close !== null; })
+      : [];
+    return closes.length > 0 ? closes[closes.length - 1] : null;
+  }
+
+  /**
+   * Input: one Yahoo chart URL for one symbol.
+   * Output: a Promise of { kind: 'quote', price } | { kind: 'missing' } |
+   *         { kind: 'unreachable', reason }.
+   * Action: GETs the URL in cors mode behind a live abort timer and reads only what settles the
+   *         question: a 404 or a body with no quote means Yahoo has no data for that symbol, a
+   *         price means it can price it, and everything else (a CORS refusal, 429, 5xx, a
+   *         timeout, a browser with no fetch) is reported as unreachable — never as missing.
+   * Role: the one interpreter of a Yahoo answer, so checkYahooSymbol() only has to decide what
+   *       the three kinds mean for the sheet.
+   */
+  function readChart(url) {
+    if (typeof fetch !== 'function') {
+      return Promise.resolve({ kind: 'unreachable', reason: 'this browser has no fetch' });
+    }
+
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = controller
+      ? window.setTimeout(function () { controller.abort(); }, SYMBOL_CHECK_TIMEOUT_MS)
+      : null;
+
+    const options = {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      mode: 'cors',
+      cache: 'no-store'
+    };
+    if (controller) options.signal = controller.signal;
+
+    return fetch(url, options).then(function (response) {
+      if (response.status === 404) return { kind: 'missing' };
+      if (!response.ok) {
+        return { kind: 'unreachable', reason: 'Yahoo answered HTTP ' + response.status };
+      }
+      return response.json().then(function (payload) {
+        const price = readQuote(payload);
+        return price === null ? { kind: 'missing' } : { kind: 'quote', price: price };
+      });
+    }).catch(function (error) {
+      const timedOut = error && error.name === 'AbortError';
+      const reason = timedOut
+        ? 'Yahoo did not answer within ' + (SYMBOL_CHECK_TIMEOUT_MS / 1000) + 's'
+        : (error && error.message ? error.message : 'network error');
+      return { kind: 'unreachable', reason: reason };
+    }).then(function (answer) {
+      if (timer) window.clearTimeout(timer);
+      return answer;
+    });
+  }
+
+  /**
+   * Input: the symbol the sheet would post.
+   * Output: a Promise of { state: 'valid' | 'invalid' | 'unknown', price, reason }.
+   * Action: refuses a symbol that is not ticker-shaped without asking anyone, then asks Yahoo
+   *         (query1, then query2) for a price and stops at the first answer that settles it.
+   * Role: Submit's gate in front of /addcompany. 'invalid' is a symbol the backend could never
+   *       price, so the sheet is never posted. 'unknown' means Yahoo could not be asked at all
+   *       (CORS refusal, a rate limit, an offline laptop), which is not evidence against the
+   *       ticker: the sheet still goes and the API stays the authority on what it accepts.
+   */
+  function checkYahooSymbol(symbol) {
+    // Clipped to MAX_SYMBOL first, because that is the string buildSubmission() would post: this
+    // check has to price the ticker the API is about to receive, not a longer draft of it.
+    const ticker = clip(typeof symbol === 'string' ? symbol.trim() : '', MAX_SYMBOL);
+
+    if (!ticker) {
+      return Promise.resolve({ state: 'invalid', reason: 'the Symbol box is empty.' });
+    }
+    if (!looksLikeSymbol(ticker)) {
+      return Promise.resolve({
+        state: 'invalid',
+        reason: '"' + ticker + '" is not a Yahoo ticker — letters and digits, with ' +
+          '. - = inside and a leading ^ for an index.'
+      });
+    }
+
+    let reason = 'Yahoo did not answer.';
+    const attempt = function (index) {
+      if (index >= YAHOO_HOSTS.length) {
+        return Promise.resolve({ state: 'unknown', reason: reason });
+      }
+      const url = YAHOO_HOSTS[index] + YAHOO_CHART + encodeURIComponent(ticker) + YAHOO_QUERY;
+      return readChart(url).then(function (answer) {
+        if (answer.kind === 'quote') {
+          return { state: 'valid', price: answer.price, reason: '' };
+        }
+        if (answer.kind === 'missing') {
+          return { state: 'invalid', reason: 'Yahoo has no price for "' + ticker + '".' };
+        }
+        reason = answer.reason;
+        return attempt(index + 1);
+      });
+    };
+
+    return attempt(0);
+  }
+
+  /**
+   * Input: the <form> element.
+   * Output: nothing.
+   * Action: puts the caret back in the Symbol box and selects the refused text.
+   * Role: after a refused ticker the next keystroke has to land in the box that was refused, not
+   *       wherever the Submit click left the focus.
+   */
+  function focusSymbol(form) {
+    const box = findControl(form, 'symbol');
+    if (!box) return;
+    if (typeof box.focus === 'function') box.focus();
+    if (typeof box.select === 'function') box.select();
+  }
+
   /**
    * Input: the <form> element and the scores object from calculateScores().
    * Output: a FormData whose keys are the sheet's own `name` attributes, in sheet order.
-   * Action: appends the identity, the four clamped scores, the winning probability in
-   *         percent, rank and the three prices the sheet has, then every attached .html
-   *         report; anything left blank is skipped. The files are read back from the form
-   *         itself, so the browser keeps their real name and MIME type.
+   * Action: appends the identity, the four clamped scores, the winning probability as the
+   *         0-1 fraction the model stores, rank and the three prices the sheet has, then every
+   *         attached .html report; anything left blank is skipped. The files are read back from
+   *         the form itself, so the browser keeps their real name and MIME type.
    * Role: the exact request body Submit posts to /addcompany — no renaming layer, so a
    *       backend field is found by reading the `name` attributes of addcompany.html.
    *       Every key here except `winning_probability` is a field of the API's CompanyUploadIn
@@ -335,7 +502,11 @@
     add('cyclical_score', scores.cyclicalScore);
     add('anti_fragile_score', scores.antifragileScore);
     add('growth_score', scores.growthScore);
-    add('winning_probability', scores.winningProbability/100);
+    // A blank probability box means "not measured", so it must stay null: null/100 would post 0
+    // and claim a 0 % chance. A measured one travels as the 0-1 fraction the model stores.
+    add('winning_probability', scores.winningProbability === null || scores.winningProbability === undefined
+      ? null
+      : scores.winningProbability / 100);
     add('rank', scores.rank);
     // The model's three prices, each part posted only when its box was filled (add() skips
     // blanks): good_price / target_price / bad_price. There is no current_price part —
@@ -735,8 +906,8 @@
       return;
     }
 
-    showHint('Fill in the scores and attach the .html reports — Submit posts the sheet to ' +
-      SUBMIT_LABEL + '.', '');
+    showHint('Fill in the scores and attach the .html reports — Submit checks the symbol with ' +
+      'Yahoo, then posts the sheet to ' + SUBMIT_LABEL + '.', '');
   }
 
   /**
@@ -751,27 +922,15 @@
   }
 
   /**
-   * Input: the <form> element.
+   * Input: the <form> element, and a symbol Yahoo has just priced.
    * Output: a Promise that settles once the server answered, or null when nothing was sent.
-   * Action: recalculates, refuses to post while a card is red, builds the body with
-   *         buildSubmission(), POSTs it to /addcompany as multipart/form-data, then reports
-   *         the outcome in the sticky footer.
-   * Role: the only network call in the app — the page itself never navigates away, so a
-   *       failed save leaves every typed value and every chosen report in place.
+   * Action: builds the body with buildSubmission(), POSTs it to /addcompany as
+   *         multipart/form-data, then reports the outcome in the sticky footer.
+   * Role: the only write in the app — the page itself never navigates away, so a failed save
+   *       leaves every typed value and every chosen report in place. Reached only through
+   *       submitForm(), so a symbol Yahoo could not price never gets this far.
    */
-  function submitForm(form) {
-    if (submitting) return Promise.resolve(null);
-    submitting = true;
-
-    const scores = recalculate(form, 'submitted').scores;
-    logScores(scores);
-
-    if (!scores.uploadsValid) {
-      submitting = false;
-      return Promise.resolve(null); // updateHint() already flagged the rejected report
-    }
-
-    setSubmitting(form, true);
+  function postSubmission(form, scores) {
     showHint('Saving — posting to ' + SUBMIT_LABEL + '.', 'warn');
     // Log the resolved URL, not the short label: a 405 in the console is nearly always the
     // page host refusing a POST on a static route, and the host is what tells them apart.
@@ -802,7 +961,6 @@
         showHint('Not saved — ' + SUBMIT_LABEL + ' answered HTTP ' + response.status + '.',
           'error');
       }
-      fetch()
       return response;
     }).catch(function (error) {
       const reason = (error && error.message) ? error.message : 'network error';
@@ -812,6 +970,56 @@
       submitting = false;
       setSubmitting(form, false);
       return response;
+    });
+  }
+
+  /**
+   * Input: the <form> element.
+   * Output: a Promise that settles once the sheet was posted, or null when nothing was sent.
+   * Action: recalculates, refuses to send while a card is red, asks Yahoo whether the symbol
+   *         can be priced, and only then hands the sheet to postSubmission().
+   * Role: the one entry point of the write path, and the gate the analyst asked for — a symbol
+   *       Yahoo has no price for stops here, so /addcompany is never called for it. The check
+   *       runs with Submit already disabled, so a second click cannot slip a sheet past it.
+   */
+  function submitForm(form) {
+    if (submitting) return Promise.resolve(null);
+    submitting = true;
+
+    const scores = recalculate(form, 'submitted').scores;
+    logScores(scores);
+
+    if (!scores.uploadsValid) {
+      submitting = false;
+      return Promise.resolve(null); // updateHint() already flagged the rejected report
+    }
+
+    setSubmitting(form, true);
+    showHint('Checking the symbol ' + scores.symbol + ' with Yahoo — the sheet posts once ' +
+      'it is priced.', 'warn');
+
+    return checkYahooSymbol(scores.symbol).then(function (check) {
+      if (check.state === 'invalid') {
+        submitting = false;
+        setSubmitting(form, false);
+        showHint('Not saved — ' + check.reason + ' Check the Symbol box and Submit again.',
+          'error');
+        console.warn(LOG_PREFIX + ' symbol refused — ' + check.reason);
+        focusSymbol(form);
+        return null;
+      }
+
+      if (check.state === 'unknown') {
+        // Yahoo could not be asked (a CORS refusal, a rate limit, no connection). That is not
+        // evidence against the ticker, so the sheet still goes and the API answers for itself.
+        console.warn(LOG_PREFIX + ' symbol check skipped — ' + check.reason +
+          '; posting ' + scores.symbol + ' anyway');
+      } else {
+        console.log(LOG_PREFIX + ' symbol ' + scores.symbol + ' is priced by Yahoo at ' +
+          check.price);
+      }
+
+      return postSubmission(form, scores);
     });
   }
 
@@ -912,7 +1120,8 @@
 
     recalculate(form, 'initial');
 
-    // Small console handle for ad-hoc checking, e.g. companyCalc.calculateScores({ ... }).
+    // Small console handle for ad-hoc checking, e.g. companyCalc.calculateScores({ ... }) or
+    // await companyCalc.checkYahooSymbol('0700.HK').
     window.companyCalc = {
       calculateScores: calculateScores,
       readForm: readForm,
@@ -925,7 +1134,10 @@
       normalizeGrade: normalizeGrade,
       normalizeScoreInputs: normalizeScoreInputs,
       describeUpload: describeUpload,
-      formatBytes: formatBytes
+      formatBytes: formatBytes,
+      looksLikeSymbol: looksLikeSymbol,
+      readQuote: readQuote,
+      checkYahooSymbol: checkYahooSymbol
     };
 
     console.log(LOG_PREFIX + ' ready — helpers available on window.companyCalc');

@@ -570,7 +570,9 @@
         </label>
         <label class="field">
           <span class="field-label">Symbol <span class="req" aria-hidden="true">*</span></span>
-          <input type="text" name="symbol" spellcheck="false" maxlength="32" required>
+          <input type="text" name="symbol" spellcheck="false" maxlength="32"
+                 aria-describedby="hint-symbol" required>
+          <span class="field-hint" id="hint-symbol">A Yahoo ticker, e.g. 0700.HK or BRK-B &mdash; checked before Submit posts.</span>
         </label>
         <div class="field span-2">
           <label class="field-label" for="file-company_profile">
@@ -917,7 +919,7 @@
     <!-- Sticky action bar: live status on the left, Reset + amber Submit on the right -->
     <div class="sheet-footer">
       <p class="calc-hint" id="calc-hint" role="status">
-        Fill in the scores and attach the .html reports &mdash; Submit posts the sheet to /addcompany.
+        Fill in the scores and attach the .html reports &mdash; Submit checks the symbol with Yahoo, then posts the sheet to /addcompany.
       </p>
       <div class="buttons">
         <button class="btn btn-soft" type="reset">Reset</button>
@@ -1022,7 +1024,7 @@
      browser from pairing this markup with a stale cached script (the host sends
      max-age=14400), which would leave the ▲ / ▼ buttons with no click listener. Bump it
      whenever calc.js changes. -->
-<script src="calc.js?v=20261101.1" defer></script>
+<script src="calc.js?v=20261108.1" defer></script>
 </body>
 </html>
 
