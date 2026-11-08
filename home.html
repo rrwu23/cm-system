@@ -381,9 +381,14 @@
   }
   .table-scroll::-webkit-scrollbar-thumb:hover { background: #b7c3d6; }
 
+  /* The columns size to what is in them and share the panel's width, so the table fits the
+     panel whole — the old 1080px min-width forced a horizontal scrollbar long before the panel
+     ran out of room. Only a phone narrow enough that eight nowrap columns cannot fit (each head
+     is at least as wide as "Antifragile") still scrolls, which is why the .table-scroll wrapper
+     stays. */
   .data-table {
     width: 100%;
-    min-width: 1080px;
+    min-width: 0;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 15px;
@@ -391,7 +396,7 @@
 
   .data-table th,
   .data-table td {
-    padding: 16px 18px;
+    padding: 12px 10px;
     border-bottom: 1px solid var(--line);
     border-right: 1px solid #eaeff7;
     text-align: left;
@@ -414,9 +419,16 @@
 
   .data-table tbody tr:last-child td { border-bottom: 0; }
 
-  /* Wide screens: the company name column stays visible while the rest scrolls.
-     Below 900px it is usually wider than the viewport, so stickiness is dropped
-     there to keep every other column reachable. */
+  /* Every column after the name shrinks to exactly the width of its widest cell — the header
+     label ("Antifragile" is the widest) or the value, whichever is longer — because 1% is a
+     floor the browser ignores in favour of the content. The name column carries no width, so
+     it soaks up the rest of the panel: the table still fills the card (the tinted head runs the
+     whole way across) and, being no wider than the panel, it never needs a sideways scroll. */
+  .data-table th:not(:first-child) { width: 1%; }
+
+  /* Only bites when the eight columns genuinely outgrow the panel on a phone: there the company
+     name column stays put while the rest scrolls. At the panel's normal width the table fits
+     whole, so this rule has nothing to do. */
   @media (min-width: 901px) {
     .data-table th:first-child,
     .data-table td:first-child {
@@ -449,7 +461,7 @@
     align-items: center;
     gap: 6px;
     width: 100%;
-    padding: 16px 18px;
+    padding: 12px 10px;
     border: 0;
     background: transparent;
     color: inherit;
@@ -486,7 +498,12 @@
   .data-table th[aria-sort="descending"] .sort-mark::before { content: '\25BC'; }
 
 
-  .cell-company { min-width: 220px; font-weight: 600; }
+  /* Chained to td so it outranks `.data-table td { white-space: nowrap }`: no min-width, so the
+     name column keeps whatever width the seven narrow value columns leave, and a long name wraps
+     onto a second line there instead of widening the table (which would bring the sideways
+     scroll back). overflow-wrap: anywhere also breaks one unspaced token, so a single freakishly
+     long name cannot force a scrollbar on its own. */
+  .data-table td.cell-company { font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
   .cell-symbol {
     color: var(--blue-ink);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -522,8 +539,8 @@
   .rank-pill {
     display: inline-flex;
     justify-content: center;
-    min-width: 38px;
-    padding: 4px 10px;
+    min-width: 26px;
+    padding: 3px 8px;
     border: 1px solid #f0d98d;
     border-radius: 999px;
     background: var(--amber-soft);
@@ -647,13 +664,13 @@
   <section class="panel" aria-labelledby="companies-title">
     <div class="panel-head">
       <h1 class="panel-title" id="companies-title">Company analysis</h1>
-      <p class="panel-hint" id="table-hint">Scroll sideways to see every column</p>
+      <p class="panel-hint" id="table-hint">Click a column name to sort</p>
     </div>
     <div
       class="table-scroll"
       tabindex="0"
       role="region"
-      aria-label="Company analysis table, scrollable horizontally">
+      aria-label="Company analysis table">
       <table class="data-table">
         <caption class="sr-only">
           Companies with symbol, moat, cyclical, antifragile, WL,
@@ -1003,17 +1020,17 @@ function showState(message, retry) {
 /**
  * Input: number of companies drawn in the table.
  * Output: none.
- * Action: rewrites the panel hint with the row count plus the two tips the table needs —
- *         it scrolls sideways, and a column name sorts it.
- * Role: tells the user data arrived, that the table can scroll sideways, and how to reorder it.
+ * Action: rewrites the panel hint with the row count plus the one tip the table needs —
+ *         a column name sorts it.
+ * Role: tells the user how many companies arrived and how to reorder them.
  */
 function setHint(count) {
   const hint = document.getElementById('table-hint');
   if (!hint) return;
 
-  const tips = 'scroll sideways \u00b7 click a column name to sort';
+  const tips = 'click a column name to sort';
   if (!count) {
-    hint.textContent = 'Scroll sideways to see every column';
+    hint.textContent = 'Click a column name to sort';
     return;
   }
   hint.textContent = count + (count === 1 ? ' company' : ' companies') + ' \u00b7 ' + tips;
