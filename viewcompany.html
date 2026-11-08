@@ -1294,9 +1294,10 @@ function renderNote(record) {
  *         path>, which serves that document as it was uploaded (the API sandboxes it, so it
  *         cannot run scripts or reach the session cookie), and names the file. The full
  *         stored path goes in the link's tooltip. Beside the name, a red Delete button asks
- *         handleDeleteAnalysis() for confirmation before anything is posted. An entry with
- *         no usable path — or a record with no symbol to key the delete on — stays plain
- *         text with no button.
+ *         handleDeleteAnalysis() for confirmation before anything is posted; it posts that
+ *         same stored path as file_name ("/<app>/company_analysis/<symbol>/<base name>"). An
+ *         entry with no usable path — or a record with no symbol to key the delete on — stays
+ *         plain text with no button.
  * Role: the growing row of a mini table, and the only place the page can delete a file.
  */
 function buildEntryRow(entry, sectionKey, symbol) {
@@ -1338,7 +1339,7 @@ function buildEntryRow(entry, sectionKey, symbol) {
     remove.textContent = 'Delete';
     remove.title = 'Delete ' + name;
     remove.setAttribute('aria-label', 'Delete ' + name);
-    remove.addEventListener('click', () => handleDeleteAnalysis(symbol, name, sectionKey, remove));
+    remove.addEventListener('click', () => handleDeleteAnalysis(symbol, path, sectionKey, remove));
     holder.appendChild(remove);
   }
 
@@ -1455,21 +1456,25 @@ function openDeleteConfirm() {
 }
 
 /**
- * Input: the current company symbol, the file's base name, the section key the document
+ * Input: the current company symbol, the document's stored path
+ *        ("/app/company_analysis/<symbol>/<file base name>"), the section key the document
  *        belongs to, and the Delete button that was pressed.
  * Output: none.
  * Action: asks openDeleteConfirm() first — a No (or Escape / scrim click) returns without
  *         touching the network or the row. A Yes disables the button (label "Deleting…"),
  *         POSTs urlencoded symbol / file_name / field_name to /deleteanalysis with
- *         credentials: 'include' so the session cookie travels, and on success re-reads the
- *         company so the deleted row is gone. A 401/403 goes to login.html; any other
- *         failure is explained in the note and the button is re-enabled.
+ *         credentials: 'include' so the session cookie travels — file_name is that full stored
+ *         path (the API keys the document on the whole path, not the base name alone), while
+ *         the note names the base name — and on success re-reads the company so the deleted
+ *         row is gone. A 401/403 goes to login.html; any other failure is explained in the
+ *         note and the button is re-enabled.
  * Role: the page's only destructive write — what a mini table's red Delete does.
  */
-async function handleDeleteAnalysis(symbol, fileNameText, fieldName, button) {
+async function handleDeleteAnalysis(symbol, filePath, fieldName, button) {
   const confirmed = await openDeleteConfirm();
   if (!confirmed) return;
 
+  const label = fileName(filePath);
   const original = button.textContent;
   button.disabled = true;
   button.textContent = 'Deleting\u2026';
@@ -1477,7 +1482,7 @@ async function handleDeleteAnalysis(symbol, fileNameText, fieldName, button) {
   try {
     const body = new URLSearchParams();
     body.set('symbol', symbol);
-    body.set('file_name', fileNameText);
+    body.set('file_name', filePath);
     body.set('field_name', fieldName);
 
     const response = await fetch(API_BASE + ENDPOINTS.deleteanalysis, {
@@ -1496,7 +1501,7 @@ async function handleDeleteAnalysis(symbol, fileNameText, fieldName, button) {
 
     // Accepted: re-read the company so the deleted document's row disappears.
     await openBySymbol(symbol);
-    setNote('Deleted ' + fileNameText + ' \u2014 the file is gone from the server.');
+    setNote('Deleted ' + label + ' \u2014 the file is gone from the server.');
   } catch (error) {
     if (isSignedOut(error)) {
       leaveForSignIn();
@@ -1505,7 +1510,7 @@ async function handleDeleteAnalysis(symbol, fileNameText, fieldName, button) {
 
     button.disabled = false;
     button.textContent = original;
-    setNote('Could not delete ' + fileNameText + ' \u2014 ' + describeError(error));
+    setNote('Could not delete ' + label + ' \u2014 ' + describeError(error));
   }
 }
 
@@ -1517,7 +1522,7 @@ async function handleDeleteAnalysis(symbol, fileNameText, fieldName, button) {
  *         one pass over record.analysis_files (toHistories()), so every stored document
  *         is drawn in its own section's mini table with the date it was added; each row
  *         links to the stored path, so no symbol is needed to open a report, while the red
- *         Delete posts the company symbol alongside the file to /deleteanalysis.
+ *         Delete posts the company symbol alongside the file's stored path to /deleteanalysis.
  * Role: the body of the page - the part that grows as the company is re-analysed, with
  *       each table scrolled rather than cut when its history passes three rows.
  */
