@@ -589,8 +589,8 @@
     <p class="company-note" id="company-note" role="status" aria-live="polite">Reading the company file&hellip;</p>
   </section>
 
-  <!-- Eight tiles: four scores on the first row, symbol + price + both W/L ratios
-       on the second. Values are written by renderTiles(). -->
+  <!-- Eight tiles: four scores on the first row, symbol + price + the WL ratio +
+       Kelly f* on the second. Values are written by renderTiles(). -->
   <section class="tiles" aria-label="Latest scores and prices">
     <div class="tile">
       <span class="tile-label">Moat score</span>
@@ -621,8 +621,8 @@
       <span class="tile-value" id="tile-wl-base" data-state="loading">&hellip;</span>
     </div>
     <div class="tile">
-      <span class="tile-label">WL ratio (optimistic)</span>
-      <span class="tile-value" id="tile-wl-optimistic" data-state="loading">&hellip;</span>
+      <span class="tile-label">Kelly f*</span>
+      <span class="tile-value" id="tile-kelly-f" data-state="loading">&hellip;</span>
     </div>
   </section>
 
@@ -682,7 +682,7 @@
  * keeps /companies/{path}.) Its
  * answer is two objects: `numerical_values` (symbol, company_name, the four
  * scores, the three prices, rank, date, current_price, price_date, wl_base,
- * wl_optimistic) and `analysis_files`, a list with one item per upload.
+ * kelly_f) and `analysis_files`, a list with one item per upload.
  *
  * An analysis_files item either names its own section - {field: "moat_analysis",
  * path: "/app/...html", date: "2026-10-28"} - or maps sections to their document
@@ -752,7 +752,7 @@ const SECTIONS = [
 
 /**
  * The eight tiles, in render order (the four scores on the first row, symbol +
- * price + both W/L ratios on the second).
+ * price, the WL ratio and Kelly f* on the second).
  * "keys" lists accepted payload spellings so a snake_case or camelCase record
  * both lands in the right box, and "kind" picks the formatter: score = whole
  * marks, money = two decimals, ratio = two decimals, text = as stored.
@@ -765,7 +765,7 @@ const TILES = [
   { id: 'tile-symbol', label: 'Symbol', keys: ['symbol', 'ticker', 'code'], kind: 'text' },
   { id: 'tile-price', label: 'Current price', keys: ['current_price', 'currentPrice', 'price'], kind: 'money' },
   { id: 'tile-wl-base', label: 'WL ratio (base)', keys: ['wl_base', 'wl_ratio_base', 'wlRatioBase'], kind: 'ratio' },
-  { id: 'tile-wl-optimistic', label: 'WL ratio (optimistic)', keys: ['wl_optimistic', 'wl_ratio_optimistic', 'wlRatioOptimistic'], kind: 'ratio' }
+  { id: 'tile-kelly-f', label: 'Kelly f*', keys: ['kelly_f', 'kellyF', 'kelly'], kind: 'ratio' }
 ];
 
 /** The two wrappers a one-company record may put its values in. */
@@ -860,10 +860,10 @@ function formatMoney(value) {
 }
 
 /**
- * Input: a W/L ratio as stored (-0.05275000573638674).
- * Output: the ratio with two decimals ("-0.05"), or the em-dash placeholder.
+ * Input: a ratio as stored (a W/L ratio -0.05275000573638674, or a Kelly fraction 0.4833819241982507).
+ * Output: the ratio with two decimals ("-0.05", "0.48"), or the em-dash placeholder.
  * Action: formats through toFixed(2).
- * Role: renders the two W/L ratio tiles.
+ * Role: renders the WL ratio and Kelly f* tiles.
  */
 function formatRatio(value) {
   const number = toNumber(value);
@@ -1271,7 +1271,7 @@ function setName(text, state) {
  * Action: fills each tile in TILES from the record, formats its value by kind,
  *         and marks the tile empty when the field is missing.
  * Role: the eight boxes - moat / cyclical / growth / antifragile score, symbol,
- *       price and both W/L ratios - i.e. the latest stored figures for this company.
+ *       price, the WL ratio and Kelly f* - i.e. the latest stored figures for this company.
  */
 function renderTiles(record) {
   for (const tile of TILES) {

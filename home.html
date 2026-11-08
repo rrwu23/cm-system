@@ -657,7 +657,7 @@
       <table class="data-table">
         <caption class="sr-only">
           Companies with symbol, moat, cyclical, antifragile, WL,
-          WL ratio optimistic and rank. Every row opens that company's file.
+          Kelly f* and rank. Every row opens that company's file.
         </caption>
         <!-- Every column name is a button: a click orders the table by that column, in the
              direction the column is normally read — a name or symbol A→Z (0→9 inside a
@@ -686,7 +686,7 @@
               <button type="button" class="sort-btn">WL<span class="sort-mark" aria-hidden="true"></span></button>
             </th>
             <th scope="col" aria-sort="none">
-              <button type="button" class="sort-btn">WL ratio optimistic<span class="sort-mark" aria-hidden="true"></span></button>
+              <button type="button" class="sort-btn">Kelly f*<span class="sort-mark" aria-hidden="true"></span></button>
             </th>
             <th scope="col" aria-sort="none">
               <button type="button" class="sort-btn">Rank<span class="sort-mark" aria-hidden="true"></span></button>
@@ -755,7 +755,8 @@ const SYMBOL_KEYS = ['symbol', 'ticker', 'code'];
  * markup follows the same order — update both together if a column changes.
  * "keys" lists accepted payload spellings so snake_case or camelCase responses
  * both land in the right column. "link" marks the one column whose text becomes
- * the row's link to the company file (see rowHref()); "pill" draws a rank pill.
+ * the row's link to the company file (see rowHref()); "pill" draws a rank pill;
+ * "decimals" rounds a float column (Kelly f*) for display.
  * "sort" is how a figure in the column compares — 'number' for a score or a ratio,
  * 'text' for a name, a symbol or a grade — and "dir" is the direction the column is
  * normally read in, which is what its first header click applies: A→Z for the
@@ -769,7 +770,7 @@ const COLUMNS = [
   { keys: ['cyclical', 'cyclical_score', 'cyclicalScore', 'beta'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
   { keys: ['anti_fragile_score', 'antifragileScore', 'antifragile'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
   { keys: ['wl_ratio_base', 'wlRatioBase', 'wl_base', 'wlbase'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
-  { keys: ['wl_ratio_optimistic', 'wlRatioOptimistic', 'wl_optimistic'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
+  { keys: ['kelly_f', 'kellyF', 'kelly'], cellClass: 'cell-num', sort: 'number', dir: 'desc', decimals: 2 },
   { keys: ['rank'], cellClass: 'cell-num', pill: true, sort: 'text', dir: 'asc' }
 ];
 
@@ -831,7 +832,7 @@ function pick(record, keys) {
  * Output: a finite number, or null when the value is not one.
  * Action: passes a number through, and reads the number out of a string after dropping the
  *         thousands commas, spaces and a trailing percent sign the API may decorate with.
- * Role: lets a figure column (moat, cyclical, antifragile, the two WL ratios) sort as figures
+ * Role: lets a figure column (moat, cyclical, antifragile, the WL ratio and Kelly f*) sort as figures
  *       even when the API sends those numbers as strings.
  */
 function toNumber(value) {
@@ -843,6 +844,20 @@ function toNumber(value) {
 
   const number = Number(text);
   return Number.isFinite(number) ? number : null;
+}
+
+/**
+ * Input: a figure from a company record (Kelly f* is stored at full float precision,
+ *        0.4833819241982507) and how many decimals the column wants shown.
+ * Output: the figure with that many decimals ("0.48"), or the em-dash placeholder.
+ * Action: reads the value through toNumber (so a string figure, commas or a trailing %
+ *         still parse) and formats with toFixed; anything non-numeric becomes EMPTY.
+ * Role: prints the Kelly f* column as a tidy two-decimal figure without changing how
+ *       the other columns render (they still pass straight through asText).
+ */
+function formatFigure(value, decimals) {
+  const number = toNumber(value);
+  return number === null ? EMPTY : number.toFixed(decimals);
 }
 
 /**
@@ -1052,7 +1067,8 @@ function renderTable(rows) {
       const cell = document.createElement('td');
       if (column.cellClass) cell.className = column.cellClass;
 
-      const text = asText(pick(record, column.keys));
+      const raw = pick(record, column.keys);
+      const text = column.decimals === undefined ? asText(raw) : formatFigure(raw, column.decimals);
       if (column.link && href) {
         const link = document.createElement('a');
         link.className = 'cell-link';
