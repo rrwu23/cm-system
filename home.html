@@ -383,7 +383,7 @@
 
   /* The columns size to what is in them and share the panel's width, so the table fits the
      panel whole — the old 1080px min-width forced a horizontal scrollbar long before the panel
-     ran out of room. Only a phone narrow enough that eight nowrap columns cannot fit (each head
+     ran out of room. Only a phone narrow enough that nine nowrap columns cannot fit (each head
      is at least as wide as "Antifragile") still scrolls, which is why the .table-scroll wrapper
      stays. */
   .data-table {
@@ -419,14 +419,15 @@
 
   .data-table tbody tr:last-child td { border-bottom: 0; }
 
-  /* Every column after the name shrinks to exactly the width of its widest cell — the header
-     label ("Antifragile" is the widest) or the value, whichever is longer — because 1% is a
-     floor the browser ignores in favour of the content. The name column carries no width, so
-     it soaks up the rest of the panel: the table still fills the card (the tinted head runs the
-     whole way across) and, being no wider than the panel, it never needs a sideways scroll. */
-  .data-table th:not(:first-child) { width: 1%; }
+  /* Every column asks for 1% — a floor the browser ignores in favour of the content — so each
+     value column comes out exactly as wide as its widest cell (the header label, "Antifragile"
+     or the value, whichever is longer) and the name column is only as wide as its capped name.
+     The table is as wide as the panel (width: 100%), so the pixels left over are shared out
+     among all nine columns: each one grows by the same slice, which keeps the tinted head
+     running the whole way across without any single column looking stretched. */
+  .data-table th { width: 1%; }
 
-  /* Only bites when the eight columns genuinely outgrow the panel on a phone: there the company
+  /* Only bites when the nine columns genuinely outgrow the panel on a phone: there the company
      name column stays put while the rest scrolls. At the panel's normal width the table fits
      whole, so this rule has nothing to do. */
   @media (min-width: 901px) {
@@ -498,12 +499,41 @@
   .data-table th[aria-sort="descending"] .sort-mark::before { content: '\25BC'; }
 
 
-  /* Chained to td so it outranks `.data-table td { white-space: nowrap }`: no min-width, so the
-     name column keeps whatever width the seven narrow value columns leave, and a long name wraps
-     onto a second line there instead of widening the table (which would bring the sideways
-     scroll back). overflow-wrap: anywhere also breaks one unspaced token, so a single freakishly
-     long name cannot force a scrollbar on its own. */
-  .data-table td.cell-company { font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
+  /* The name is a single line that never grows past a name's worth of room: the cell holds a
+     .name-fit span capped at 260px, and a long name shortens its own font (fitCompanyNames()
+     walks the column's size down from 15px, floor 12px, and keeps the largest size that fits)
+     instead of wrapping onto a second line or pushing the columns after it. A name too long for
+     even 12px keeps the full size and ends in an ellipsis, so no name can force a sideways
+     scroll. */
+  .data-table td.cell-company { font-weight: 600; white-space: nowrap; }
+  .data-table .name-fit {
+    display: inline-block;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+  }
+
+  /* The cap gives ground as the window narrows, because nine columns at their own width and a
+     260px name no longer fit a laptop panel (the nine measure ~786px with a bare name). These
+     steps — the last two tighten the cell padding as well — hold the sideways scroll off down to
+     the ~860px split-screen; below that the table is genuinely wider than the panel and the
+     .table-scroll wrapper takes over. */
+  @media (max-width: 1200px) {
+    .data-table .name-fit { max-width: 190px; }
+  }
+  @media (max-width: 1024px) {
+    .data-table .name-fit { max-width: 150px; }
+  }
+  @media (max-width: 940px) {
+    .data-table .name-fit { max-width: 96px; }
+    .data-table th,
+    .data-table td { padding: 12px 7px; }
+  }
+  @media (max-width: 860px) {
+    .data-table th,
+    .data-table td { padding: 12px 5px; }
+  }
   .cell-symbol {
     color: var(--blue-ink);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -673,7 +703,7 @@
       aria-label="Company analysis table">
       <table class="data-table">
         <caption class="sr-only">
-          Companies with symbol, moat, cyclical, antifragile, WL,
+          Companies with symbol, moat, cyclical, antifragile, growth, WL,
           Kelly f* and rank. Every row opens that company's file.
         </caption>
         <!-- Every column name is a button: a click orders the table by that column, in the
@@ -681,7 +711,7 @@
              symbol), a score or ratio biggest first, the rank with the best grade on top —
              and a second click on the same name flips it. aria-sort carries the state (it is
              also what draws the arrow). The head is static markup, so one listener on the row
-             (handleSortClick) serves all eight, however often the body is re-drawn. -->
+             (handleSortClick) serves all nine, however often the body is re-drawn. -->
         <thead>
           <tr>
             <th scope="col" aria-sort="none">
@@ -700,6 +730,9 @@
               <button type="button" class="sort-btn">Antifragile<span class="sort-mark" aria-hidden="true"></span></button>
             </th>
             <th scope="col" aria-sort="none">
+              <button type="button" class="sort-btn">Growth<span class="sort-mark" aria-hidden="true"></span></button>
+            </th>
+            <th scope="col" aria-sort="none">
               <button type="button" class="sort-btn">WL<span class="sort-mark" aria-hidden="true"></span></button>
             </th>
             <th scope="col" aria-sort="none">
@@ -712,7 +745,7 @@
         </thead>
         <tbody id="companies-body">
           <tr>
-            <td class="state-cell" colspan="8">Loading companies&hellip;</td>
+            <td class="state-cell" colspan="9">Loading companies&hellip;</td>
           </tr>
         </tbody>
       </table>
@@ -786,6 +819,7 @@ const COLUMNS = [
   { keys: ['moat', 'moat_score', 'moatScore', 'alpha'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
   { keys: ['cyclical', 'cyclical_score', 'cyclicalScore', 'beta'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
   { keys: ['anti_fragile_score', 'antifragileScore', 'antifragile'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
+  { keys: ['growth_score', 'growthScore', 'growth'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
   { keys: ['wl_ratio_base', 'wlRatioBase', 'wl_base', 'wlbase'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
   { keys: ['kelly_f', 'kellyF', 'kelly'], cellClass: 'cell-num', sort: 'number', dir: 'desc', decimals: 2 },
   { keys: ['rank'], cellClass: 'cell-num', pill: true, sort: 'text', dir: 'asc' }
@@ -1084,6 +1118,11 @@ function renderTable(rows) {
       const cell = document.createElement('td');
       if (column.cellClass) cell.className = column.cellClass;
 
+      // The name goes inside a capped span (see .name-fit) so fitCompanyNames() can shorten
+      // its font instead of letting a long name widen the column.
+      const holder = column.link ? document.createElement('span') : cell;
+      if (column.link) holder.className = 'name-fit';
+
       const raw = pick(record, column.keys);
       const text = column.decimals === undefined ? asText(raw) : formatFigure(raw, column.decimals);
       if (column.link && href) {
@@ -1091,15 +1130,16 @@ function renderTable(rows) {
         link.className = 'cell-link';
         link.href = href;
         link.textContent = text;
-        cell.appendChild(link);
+        holder.appendChild(link);
       } else if (column.pill && text !== EMPTY) {
         const pill = document.createElement('span');
         pill.className = 'rank-pill';
         pill.textContent = text;
-        cell.appendChild(pill);
+        holder.appendChild(pill);
       } else {
-        cell.textContent = text;
+        holder.textContent = text;
       }
+      if (holder !== cell) cell.appendChild(holder);
       if (text === EMPTY) cell.classList.add('cell-empty');
 
       row.appendChild(cell);
@@ -1108,7 +1148,38 @@ function renderTable(rows) {
   }
 
   body.appendChild(fragment);
+  fitCompanyNames();
   setHint(rows.length);
+}
+
+/**
+ * Input: none (reads the name cells of the table that is on screen).
+ * Output: none.
+ * Action: gives the whole name column one font-size — 15px first, then half a pixel smaller
+ *         each pass, stopping at 12px — and keeps the largest size at which no .name-fit span
+ *         overflows its cap, so every row keeps the same size. When even 12px cannot fit the
+ *         longest name, the column goes back to the full 15px and that one name ends in an
+ *         ellipsis (the stylesheet's text-overflow): shrinking every row for a name that still
+ *         would not fit whole buys nothing.
+ * Role: a long company name shortens its own font instead of stretching the name column or
+ *       wrapping onto a second line, which is what keeps the table inside the panel.
+ */
+function fitCompanyNames() {
+  const cells = Array.prototype.slice.call(
+    document.querySelectorAll('.data-table td.cell-company'));
+  if (!cells.length) return;
+
+  for (let size = 15; size >= 12; size -= 0.5) {
+    for (const cell of cells) cell.style.fontSize = size + 'px';
+
+    const overflows = cells.some(function (cell) {
+      const span = cell.querySelector('.name-fit');
+      return span ? span.scrollWidth > span.clientWidth + 1 : false;
+    });
+    if (!overflows) return;
+  }
+
+  for (const cell of cells) cell.style.fontSize = '';
 }
 
 /* ---------- Sorting the analysis table: one header click, one order ---------- */
@@ -1203,7 +1274,7 @@ function sortByColumn(index) {
  * Output: none.
  * Action: finds the header cell the click landed in and hands its index to sortByColumn();
  *         a click outside a header cell is ignored.
- * Role: one listener for the eight headers — the head is static markup, so it outlives every
+ * Role: one listener for the nine headers — the head is static markup, so it outlives every
  *       re-draw of the body; the button in each cell also gives the keyboard Enter and Space.
  */
 function handleSortClick(event) {
@@ -1741,10 +1812,18 @@ function init() {
   const viewLink = document.getElementById('view-company');
   if (viewLink) viewLink.addEventListener('click', handleViewClick);
 
-  // The head is static markup, so this one listener serves all eight column buttons and
+  // The head is static markup, so this one listener serves all nine column buttons and
   // outlives every re-draw of the body below it.
   const tableHead = document.querySelector('.data-table thead');
   if (tableHead) tableHead.addEventListener('click', handleSortClick);
+
+  // The name column's font is fitted to the panel it sits in, so a window resize re-fits it —
+  // debounced, because resize fires on every frame while the mouse is held down.
+  let resizeTimer = 0;
+  window.addEventListener('resize', function () {
+    window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(fitCompanyNames, 120);
+  });
 
   const tableBody = document.getElementById('companies-body');
   if (tableBody) tableBody.addEventListener('click', handleRowClick);
