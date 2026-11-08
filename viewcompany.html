@@ -195,7 +195,7 @@
     font-weight: 700;
   }
 
-  /* ---------- Eight tiles: four scores, symbol, price, both W/L ratios ----------
+  /* ---------- Eight tiles: four scores, symbol, price, WL and Kelly f* ----------
      A 4-column grid, so the four scores (moat / cyclical / growth / antifragile)
      sit on the first row and the symbol + the three price lines on the second,
      exactly like the paper sketch. */
@@ -589,8 +589,8 @@
     <p class="company-note" id="company-note" role="status" aria-live="polite">Reading the company file&hellip;</p>
   </section>
 
-  <!-- Eight tiles: four scores on the first row, symbol + price + the WL ratio +
-       Kelly f* on the second. Values are written by renderTiles(). -->
+  <!-- Eight tiles: four scores on the first row, symbol + price + WL + Kelly f*
+       on the second. Values are written by renderTiles(). -->
   <section class="tiles" aria-label="Latest scores and prices">
     <div class="tile">
       <span class="tile-label">Moat score</span>
@@ -617,7 +617,7 @@
       <span class="tile-value" id="tile-price" data-state="loading">&hellip;</span>
     </div>
     <div class="tile">
-      <span class="tile-label">WL ratio (base)</span>
+      <span class="tile-label">WL</span>
       <span class="tile-value" id="tile-wl-base" data-state="loading">&hellip;</span>
     </div>
     <div class="tile">
@@ -752,7 +752,7 @@ const SECTIONS = [
 
 /**
  * The eight tiles, in render order (the four scores on the first row, symbol +
- * price, the WL ratio and Kelly f* on the second).
+ * price, WL and Kelly f* on the second).
  * "keys" lists accepted payload spellings so a snake_case or camelCase record
  * both lands in the right box, and "kind" picks the formatter: score = whole
  * marks, money = two decimals, ratio = two decimals, text = as stored.
@@ -764,7 +764,7 @@ const TILES = [
   { id: 'tile-anti-fragile', label: 'Antifragile score', keys: ['anti_fragile_score', 'antifragile_score', 'antiFragileScore'], kind: 'score' },
   { id: 'tile-symbol', label: 'Symbol', keys: ['symbol', 'ticker', 'code'], kind: 'text' },
   { id: 'tile-price', label: 'Current price', keys: ['current_price', 'currentPrice', 'price'], kind: 'money' },
-  { id: 'tile-wl-base', label: 'WL ratio (base)', keys: ['wl_base', 'wl_ratio_base', 'wlRatioBase'], kind: 'ratio' },
+  { id: 'tile-wl-base', label: 'WL', keys: ['wl_base', 'wl_ratio_base', 'wlRatioBase'], kind: 'ratio' },
   { id: 'tile-kelly-f', label: 'Kelly f*', keys: ['kelly_f', 'kellyF', 'kelly'], kind: 'ratio' }
 ];
 
@@ -863,7 +863,7 @@ function formatMoney(value) {
  * Input: a ratio as stored (a W/L ratio -0.05275000573638674, or a Kelly fraction 0.4833819241982507).
  * Output: the ratio with two decimals ("-0.05", "0.48"), or the em-dash placeholder.
  * Action: formats through toFixed(2).
- * Role: renders the WL ratio and Kelly f* tiles.
+ * Role: renders the WL and Kelly f* tiles.
  */
 function formatRatio(value) {
   const number = toNumber(value);
@@ -1271,7 +1271,7 @@ function setName(text, state) {
  * Action: fills each tile in TILES from the record, formats its value by kind,
  *         and marks the tile empty when the field is missing.
  * Role: the eight boxes - moat / cyclical / growth / antifragile score, symbol,
- *       price, the WL ratio and Kelly f* - i.e. the latest stored figures for this company.
+ *       price, WL and Kelly f* - i.e. the latest stored figures for this company.
  */
 function renderTiles(record) {
   for (const tile of TILES) {
