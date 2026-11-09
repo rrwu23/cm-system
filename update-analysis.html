@@ -643,7 +643,8 @@
       Every part is named exactly as the column the API serves it as, so the payload needs no
       renaming layer: company_name, symbol, rank, moat_score, current_price (labelled
       "Latest price" here), cyclical_score, wl_base (labelled "WL ratio"),
-      anti_fragile_score, kelly_f (labelled "Kelly f*", the Kelly fraction), growth_score, the
+      anti_fragile_score, kelly_f (labelled "Kelly f*", the Kelly fraction, written to the same two
+      decimals the dashboard and the company file print), growth_score, the
       thirteen section names, and memo. There is no `date` part on purpose — the row is dated
       by the server, the same rule /addcompany follows. A file box left empty is left out of
       the request entirely, so the API keeps the stored document for that section.
@@ -1100,6 +1101,8 @@
  *   anti_fragile_score, kelly_f, growth_score, memo,
  *   plus one part per attached .html report (the thirteen section names).
  *   - a blank box is left out, so the API keeps what is stored (its own upsert rule);
+ *   - `kelly_f` travels to two decimals (0.48), the same figure the box shows and the same
+ *     two home.html and viewcompany.html print — see twoDecimals();
  *   - a file box with nothing attached is left out too, and so is a file that is not .html;
  *   - there is no `date` part: the row is dated by the server, as /addcompany does.
  * ---------------------------------------------------------------------------
@@ -1145,7 +1148,8 @@ const SECTIONS = [
 //   latest_price <- current_price   (the quote the API stores)
 //   wl_base      <- wl_base / wl_ratio_base
 //   kelly_f      <- kelly_f / kellyF / kelly   (the Kelly fraction — the API sends no
-//                   wl_optimistic, so the old optimistic W/L ratio is gone from this page)
+//                   wl_optimistic, so the old optimistic W/L ratio is gone from this page;
+//                   setValue() prints it to two decimals, 0.48)
 const STRIP_FIELDS = [
   { field: 'company_name', keys: ['company_name', 'companyName', 'name'] },
   { field: 'symbol', keys: ['symbol', 'ticker', 'code'] },
@@ -1451,18 +1455,40 @@ async function signOut() {
 }
 
 /**
+ * Input: the text a record holds for a figure (a number, a numeric string, or nothing at all).
+ * Output: that figure written to two decimals ('0.4833819241982507' -> '0.48'), or the text
+ *         handed back untouched when it does not read as a finite number ('' stays '').
+ * Action: parses the text with Number(), rounds to two decimals and prints the result as text —
+ *         no thousands separators, no trailing zeros, so an integer keeps its own face.
+ * Role: the one place the sheet shortens a fraction. The Kelly fraction arrives from the API
+ *       with a dozen or more decimals, and the dashboard column (home.html) and the company-file
+ *       tile (viewcompany.html) both print it to two; this keeps the sheet's box reading the
+ *       same 0.48 that the rest of the app shows — and posting that same figure.
+ */
+function twoDecimals(text) {
+  if (text === null || text === undefined || text === '') return '';
+  const figure = Number(text);
+  if (!Number.isFinite(figure)) return text;
+  return String(Math.round(figure * 100) / 100);
+}
+
+/**
  * Input: the `name` of a figure on the strip and the text to put in it.
  * Output: none.
  * Action: sets the box's value and its default value — the box is read-only, so this is the
  *         only writer, and writing the default too means Reset brings the company's stored
- *         figure back instead of blanking the box.
+ *         figure back instead of blanking the box. `kelly_f` goes through twoDecimals() first,
+ *         so the Kelly fraction reads (and is posted) as 0.48 rather than the sixteen decimals
+ *         the API serves; a blank stays blank, which draws the box's em dash and leaves the
+ *         part out of the request.
  * Role: one writer for the nine figures on the strip.
  */
 function setValue(name, value) {
+  const text = name === 'kelly_f' ? twoDecimals(value) : value;
   const input = document.querySelector('#update-form [name="' + name + '"]');
   if (!input) return;
-  input.value = value;
-  input.defaultValue = value;
+  input.value = text;
+  input.defaultValue = text;
 }
 
 /**
