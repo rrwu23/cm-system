@@ -245,8 +245,8 @@
 
   /* ---------- The summary strip: rank pill, then the record's own figures in column pairs ---------
      Six columns: the rank cell spans both rows, and the nine figures fill the rest column by
-     column — Company name / symbol, Moat score / latest price, cyclical score / WL-ratio(base),
-     Anti-fragile score / WL-ratio(optimistic), growth score — exactly the pairing the sketch has. */
+     column — Company name / symbol, Moat score / latest price, cyclical score / WL ratio,
+     Anti-fragile score / Kelly f*, growth score — exactly the pairing the sketch has. */
   .summary {
     display: grid;
     grid-template-columns: auto;
@@ -642,8 +642,8 @@
       this action= / method= / enctype= trio is the no-JavaScript fallback.
       Every part is named exactly as the column the API serves it as, so the payload needs no
       renaming layer: company_name, symbol, rank, moat_score, current_price (labelled
-      "Latest price" here), cyclical_score, wl_base (labelled "WL-ratio (base)"),
-      anti_fragile_score, wl_optimistic (labelled "WL-ratio (optimistic)"), growth_score, the
+      "Latest price" here), cyclical_score, wl_base (labelled "WL ratio"),
+      anti_fragile_score, kelly_f (labelled "Kelly f*", the Kelly fraction), growth_score, the
       thirteen section names, and memo. There is no `date` part on purpose — the row is dated
       by the server, the same rule /addcompany follows. A file box left empty is left out of
       the request entirely, so the API keeps the stored document for that section.
@@ -658,7 +658,7 @@
       <!--
         The summary strip. The grid fills it column by column, so the DOM order is the reading
         order down each pair: Company name / symbol, Moat score / latest price,
-        cyclical score / WL-ratio(base), Anti-fragile score / WL-ratio(optimistic), growth score,
+        cyclical score / WL ratio, Anti-fragile score / Kelly f*, growth score,
         with the rank pill standing beside them for both rows.
         Every figure here is read-only: the strip is a statement of the record on file, filled by
         fillStrip() and posted back untouched by buildSubmission(). The only things an analyst adds
@@ -707,7 +707,7 @@
           </label>
 
           <label class="field">
-            <span class="field-label">WL-ratio(base)</span>
+            <span class="field-label">WL ratio</span>
             <input type="number" name="wl_base" readonly placeholder="&mdash;">
           </label>
 
@@ -717,8 +717,8 @@
           </label>
 
           <label class="field">
-            <span class="field-label">WL-ratio(optimistic)</span>
-            <input type="number" name="wl_optimistic" readonly placeholder="&mdash;">
+            <span class="field-label">Kelly f*</span>
+            <input type="number" name="kelly_f" readonly placeholder="&mdash;">
           </label>
 
           <label class="field">
@@ -1083,7 +1083,7 @@
  *   GET  https://api.kidsfunbank.ca/getuser          -> { user_name, ... } for the greeting
  *   GET  https://api.kidsfunbank.ca/companies-s/{key} -> one company, wrapped:
  *          { numerical_values: { company_name, symbol, rank, moat_score, current_price,
- *            cyclical_score, wl_base, anti_fragile_score, wl_optimistic, growth_score, ... },
+ *            cyclical_score, wl_base, anti_fragile_score, kelly_f, growth_score, ... },
  *            analysis_files: [ ... ] }
  *          (the key may be a symbol or a name - but a name answers an EMPTY record today,
  *          see findInList(), which is why a name falls back to the list read)
@@ -1097,7 +1097,7 @@
  *
  * What Submit sends (multipart/form-data, every part named as the column it is):
  *   company_name, symbol, rank, moat_score, current_price, cyclical_score, wl_base,
- *   anti_fragile_score, wl_optimistic, growth_score, memo,
+ *   anti_fragile_score, kelly_f, growth_score, memo,
  *   plus one part per attached .html report (the thirteen section names).
  *   - a blank box is left out, so the API keeps what is stored (its own upsert rule);
  *   - a file box with nothing attached is left out too, and so is a file that is not .html;
@@ -1142,9 +1142,10 @@ const SECTIONS = [
 
 // The figures on the summary strip: the input's own `name`, and the record keys it is filled
 // from (the API's spelling first, then the spellings a future payload might use).
-//   latest_price  <- current_price   (the quote the API stores)
-//   wl_base       <- wl_base / wl_ratio_base
-//   wl_optimistic <- wl_optimistic / wl_ratio_optimistic
+//   latest_price <- current_price   (the quote the API stores)
+//   wl_base      <- wl_base / wl_ratio_base
+//   kelly_f      <- kelly_f / kellyF / kelly   (the Kelly fraction — the API sends no
+//                   wl_optimistic, so the old optimistic W/L ratio is gone from this page)
 const STRIP_FIELDS = [
   { field: 'company_name', keys: ['company_name', 'companyName', 'name'] },
   { field: 'symbol', keys: ['symbol', 'ticker', 'code'] },
@@ -1153,7 +1154,7 @@ const STRIP_FIELDS = [
   { field: 'cyclical_score', keys: ['cyclical_score', 'cyclicalScore'] },
   { field: 'wl_base', keys: ['wl_base', 'wlBase', 'wl_ratio_base'] },
   { field: 'anti_fragile_score', keys: ['anti_fragile_score', 'antiFragileScore', 'antifragile_score'] },
-  { field: 'wl_optimistic', keys: ['wl_optimistic', 'wlOptimistic', 'wl_ratio_optimistic'] },
+  { field: 'kelly_f', keys: ['kelly_f', 'kellyF', 'kelly'] },
   { field: 'growth_score', keys: ['growth_score', 'growthScore'] }
 ];
 
