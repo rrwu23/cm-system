@@ -871,42 +871,109 @@ function formatRatio(value) {
 }
 
 /**
- * Input: an ISO date or timestamp ("2026-10-29", "2026-10-29T22:00:09.456275Z").
- * Output: "2026/10/29", or "2026/10/29 22:00" when the value carries a time;
- *         the em-dash placeholder when there is no usable date.
- * Action: reads the digits with a regex (no Date object, so no timezone shift)
- *         and drops the seconds the way the paper file does.
- * Role: stamps every mini-table date cell and the note under the company name.
+ * Input: a one- or two-digit figure (a month, a day, an hour, a minute).
+ * Output: that figure as two characters ("9" -> "09").
+ * Action: pads with a leading zero.
+ * Role: the one padder behind readStamp() / formatStamp() / dateKey(), so every stamp this page
+ *       prints and sorts is the same width.
+ */
+function pad2(part) {
+  return String(part).padStart(2, '0');
+}
+
+/**
+ * Input: a stored date or timestamp exactly as the API serves it - "2026-11-09",
+ *        "2026-11-09T22:00:01.044149Z", "2026-11-09T22:00:01+08:00", "2026-11-09 22:00" or a
+ *        slashed "2026/11/09" - or nothing at all.
+ * Output: { year, month, day, hour, minute }, with hour/minute null for a bare date, or null
+ *         when the value carries no readable date.
+ * Action: reads year, month, day and the optional hour/minute with a regex (1-2 digit month and
+ *         day, so "2026/1/5" works). A value that carries a zone - "Z", or "+08:00" / "+0800" -
+ *         names an instant, so it is rebuilt as a clean ISO string (fraction cut to whole
+ *         seconds), handed to Date(), and read back through the LOCAL getters: the hour then
+ *         lands in the viewer's own zone, daylight saving included (UTC-4 in summer, UTC-5 in
+ *         winter for this reader), and the browser's zone stays the only place that rule lives.
+ *         A time with no zone is already local wall-clock time, and a bare date is a calendar
+ *         day with no instant behind it - both come back exactly as they were written.
+ * Role: the single reader of a stored stamp. formatStamp() prints what it returns and dateKey()
+ *       numbers it, so the cell and the sort order can never disagree about which hour a row
+ *       happened in.
+ */
+function readStamp(value) {
+  const text = asText(value);
+  if (text === EMPTY) return null;
+
+  const pattern = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?\s*(Z|[+-]\d{2}:?\d{2})?)?/;
+  const match = pattern.exec(text);
+  if (!match) return null;
+
+  const part = {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+    hour: match[4] === undefined ? null : Number(match[4]),
+    minute: match[5] === undefined ? null : Number(match[5])
+  };
+
+  // A bare date, or a time carrying no zone: nothing to convert.
+  if (part.hour === null || match[6] === undefined) return part;
+
+  const zone = match[6] === 'Z' ? 'Z' : match[6].replace(/^([+-]\d{2}):?(\d{2})$/, '$1:$2');
+  const instant = new Date(
+    match[1] + '-' + pad2(part.month) + '-' + pad2(part.day) +
+    'T' + pad2(part.hour) + ':' + pad2(part.minute) + ':00' + zone
+  );
+  if (!Number.isFinite(instant.getTime())) return part;
+
+  return {
+    year: instant.getFullYear(),
+    month: instant.getMonth() + 1,
+    day: instant.getDate(),
+    hour: instant.getHours(),
+    minute: instant.getMinutes()
+  };
+}
+
+/**
+ * Input: a stored date or timestamp in any shape readStamp() understands.
+ * Output: "2026/11/09", or "2026/11/09 17:00" when the value carries a time, always in the
+ *         VIEWER's zone; the em-dash placeholder when there is nothing there; any text
+ *         readStamp() cannot read is handed back unchanged.
+ * Action: prints the parts readStamp() resolved and drops the seconds the way the paper file
+ *         does. A 22:00Z price stamp therefore reads "17:00" on an Eastern reader's screen
+ *         (18:00 in summer), because the conversion already happened in readStamp().
+ * Role: stamps every mini-table date cell and the note under the company name - the one place a
+ *       stored stamp becomes characters.
  */
 function formatStamp(value) {
   const text = asText(value);
   if (text === EMPTY) return EMPTY;
 
-  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(text);
-  if (!match) return text;
+  const part = readStamp(text);
+  if (!part) return text;
 
-  const stamp = match[1] + '/' + match[2] + '/' + match[3];
-  return match[4] ? stamp + ' ' + match[4] + ':' + match[5] : stamp;
+  const day = part.year + '/' + pad2(part.month) + '/' + pad2(part.day);
+  return part.hour === null ? day : day + ' ' + pad2(part.hour) + ':' + pad2(part.minute);
 }
 
 /**
  * Input: a mini-table stamp - the raw entry.date ("2026-11-08",
- *        "2026-10-29T22:00:09.456275Z", or a slashed "2026/11/08").
+ *        "2026-11-09T22:00:01.044149Z", or a slashed "2026/11/08").
  * Output: a number that orders two stamps chronologically (YYYYMMDDHHMM as digits), or null
  *         when the value carries no readable date.
- * Action: reads year, month, day and the optional hour/minute with a regex - no Date object, so
- *         no timezone shift - and pads single digits, so "2026/1/5" sorts as "20260105".
- * Role: the sort key behind sortEntries(), the companion to formatStamp() which shows the same
- *       value: one reads the stamp to compare it, the other to print it.
+ * Action: numbers the parts readStamp() resolved - the same hour formatStamp() prints, i.e. the
+ *         viewer's - and pads every field, so "2026/1/5" sorts as "202601050000". A stamp with
+ *         no time sorts at 00:00 of its own day.
+ * Role: the sort key behind sortEntries(), the companion to formatStamp(): one numbers a stamp
+ *       to compare it, the other prints it, and both read the same hour, so the printed order is
+ *       always the sorted order.
  */
 function dateKey(value) {
-  const text = asText(value);
-  const match = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T ](\d{1,2}):(\d{2}))?/.exec(text);
-  if (!match) return null;
-  const pad = (part) => String(part).padStart(2, '0');
-  return Number(
-    match[1] + pad(match[2]) + pad(match[3]) + pad(match[4] || 0) + pad(match[5] || 0)
-  );
+  const part = readStamp(value);
+  if (!part) return null;
+
+  const time = pad2(part.hour === null ? 0 : part.hour) + pad2(part.minute === null ? 0 : part.minute);
+  return Number(String(part.year) + pad2(part.month) + pad2(part.day) + time);
 }
 
 /**
@@ -1340,7 +1407,9 @@ function renderTiles(record) {
  * Output: none.
  * Action: clears #company-note and writes a "Rank A" pill followed by the dates
  *         the scores and the price were stored, e.g.
- *         "Rank A · Scores dated 2026/10/29 · Price 2026/10/29 22:00".
+ *         "Rank A · Scores dated 2026/10/29 · Price 2026/10/29 17:00" - the price stamp
+ *         arrives as 22:00Z and formatStamp() reads it in the viewer's own zone, so the
+ *         hour on screen is 17:00 in November and 18:00 in July for an Eastern reader.
  * Role: says how current the numbers above the tables are, without inventing
  *       anything: a company with no stored scores says so.
  */
