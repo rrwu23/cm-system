@@ -271,7 +271,15 @@
     .data-table tbody tr:hover td:first-child { background: #f8fbff; }
   }
 
-  .cell-name { min-width: 240px; font-weight: 600; }
+  /* The two text columns are sized by what they hold, not by a share of the width.
+     `width: 1%` asks for nothing, so the table shrinks each column to its longest value
+     (white-space: nowrap above keeps every name and symbol on one line) and every spare
+     pixel goes to the rank and the three prices. A header longer than any value still sets
+     the floor, so neither column can clip its own label. */
+  .cell-name {
+    width: 1%;
+    font-weight: 600;
+  }
 
   /* Every cell's one link: the company's file. The link itself is only as wide as its text,
      but its ::after stretches to the whole cell (the <td> is the positioned ancestor), so a
@@ -301,7 +309,9 @@
     border-radius: 6px;
   }
 
+  /* Same trick as the name: the symbol column is as wide as its widest symbol. */
   .cell-symbol {
+    width: 1%;
     color: var(--blue-ink);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 13.5px;
@@ -393,7 +403,7 @@
 
   <!--
     Under that header, the page is one table: what the desk holds (company, symbol, rank) and
-    the three prices that bracket each holding (latest / target / bad). The card is as tall as
+    the three prices that bracket each holding (last / target / bad). The card is as tall as
     its rows need, up to the height the window leaves under the header; `.table-scroll` inside
     it owns the scrolling, so a hundred holdings scroll in place instead of pushing the page's
     bottom further and further down. The header row (and, on wide screens, the name column)
@@ -409,7 +419,7 @@
       aria-label="Portfolio table, scrollable vertically and horizontally">
       <table class="data-table">
         <caption class="sr-only" id="portfolio-title">
-          Portfolio analytics. Company name, company symbol, rank, latest price, target
+          Portfolio analytics. Company name, company symbol, rank, last price, target
           price and bad price. Every cell opens that company's file.
         </caption>
         <thead>
@@ -417,7 +427,7 @@
             <th scope="col">Company Name</th>
             <th scope="col">Company Symbol</th>
             <th scope="col">Rank</th>
-            <th scope="col">Latest Price</th>
+            <th scope="col">Last Price</th>
             <th scope="col">Target Price</th>
             <th scope="col">Bad Price</th>
           </tr>
@@ -745,7 +755,7 @@ function describeRows(count) {
 
   const size = count ? count + (count === 1 ? ' holding.' : ' holdings.') : 'No holdings yet.';
   caption.textContent = 'Portfolio analytics. ' + size +
-    ' Company name, company symbol, rank, latest price, target price and bad price.' +
+    ' Company name, company symbol, rank, last price, target price and bad price.' +
     ' Every cell opens that company\u2019s file.';
 }
 
