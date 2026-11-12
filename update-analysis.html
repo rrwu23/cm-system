@@ -642,7 +642,8 @@
       this action= / method= / enctype= trio is the no-JavaScript fallback.
       Every part is named exactly as the column the API serves it as, so the payload needs no
       renaming layer: company_name, symbol, rank, moat_score, current_price (labelled
-      "Latest price" here), cyclical_score, wl_base (labelled "WL ratio"),
+      "last price", written to two decimals, 398.80), cyclical_score, wl_base (labelled
+      "WL ratio"),
       anti_fragile_score, kelly_f (labelled "Kelly f*", the Kelly fraction, written to the same two
       decimals the dashboard and the company file print), growth_score, the
       thirteen section names, and memo. There is no `date` part on purpose — the row is dated
@@ -1103,6 +1104,8 @@
  *   - a blank box is left out, so the API keeps what is stored (its own upsert rule);
  *   - `kelly_f` travels to two decimals (0.48), the same figure the box shows and the same
  *     two home.html and viewcompany.html print — see twoDecimals();
+ *   - `current_price` travels to two decimals as well (398.80), the figure the box shows and
+ *     the one viewcompany.html's Current price tile prints — see priceDecimals();
  *   - a file box with nothing attached is left out too, and so is a file that is not .html;
  *   - there is no `date` part: the row is dated by the server, as /addcompany does.
  * ---------------------------------------------------------------------------
@@ -1145,7 +1148,8 @@ const SECTIONS = [
 
 // The figures on the summary strip: the input's own `name`, and the record keys it is filled
 // from (the API's spelling first, then the spellings a future payload might use).
-//   latest_price <- current_price   (the quote the API stores)
+//   latest_price <- current_price   (the quote the API stores — a float with a dozen decimals;
+//                   setValue() prints it to two, 398.80)
 //   wl_base      <- wl_base / wl_ratio_base
 //   kelly_f      <- kelly_f / kellyF / kelly   (the Kelly fraction — the API sends no
 //                   wl_optimistic, so the old optimistic W/L ratio is gone from this page;
@@ -1473,18 +1477,47 @@ function twoDecimals(text) {
 }
 
 /**
+ * Input: a price as the quote API stores it (a float with a dozen decimals,
+ *        398.79998779296875), a numeric string ('398.80'), or nothing at all.
+ * Output: that price written to exactly two decimals ('398.80'), or the text handed back
+ *         untouched when it does not read as a finite number ('' stays '').
+ * Action: parses the text with Number() and formats through toFixed(2) — no thousands
+ *         separators, no currency symbol (the record does not say which one applies), and the
+ *         second decimal is always printed, so 600 reads 600.00.
+ * Role: the one place the sheet shortens a price. The quote is stored at float precision, and
+ *       the company file's Current price tile (viewcompany.html, formatMoney) prints toFixed(2)
+ *       too, so the sheet's box reads the same 398.80 that page shows — and posts that figure.
+ */
+function priceDecimals(text) {
+  if (text === null || text === undefined || text === '') return '';
+  const figure = Number(text);
+  if (!Number.isFinite(figure)) return text;
+  return figure.toFixed(2);
+}
+
+// The figures the sheet shortens before it prints them, by the input's own `name`: the quote
+// arrives as a float with a dozen decimals and the Kelly fraction with sixteen, and neither is
+// the figure the rest of the app shows. setValue() asks this table first, so shortening a third
+// figure is one line here rather than a second branch inside setValue().
+const FIGURE_FORMATS = {
+  current_price: priceDecimals,
+  kelly_f: twoDecimals
+};
+
+/**
  * Input: the `name` of a figure on the strip and the text to put in it.
  * Output: none.
  * Action: sets the box's value and its default value — the box is read-only, so this is the
  *         only writer, and writing the default too means Reset brings the company's stored
- *         figure back instead of blanking the box. `kelly_f` goes through twoDecimals() first,
- *         so the Kelly fraction reads (and is posted) as 0.48 rather than the sixteen decimals
- *         the API serves; a blank stays blank, which draws the box's em dash and leaves the
- *         part out of the request.
+ *         figure back instead of blanking the box. A figure listed in FIGURE_FORMATS is
+ *         shortened first, so `current_price` reads (and is posted) as 398.80 rather than the
+ *         quote's fourteen decimals and `kelly_f` as 0.48 rather than its sixteen; a blank
+ *         stays blank, which draws the box's em dash and leaves the part out of the request.
  * Role: one writer for the nine figures on the strip.
  */
 function setValue(name, value) {
-  const text = name === 'kelly_f' ? twoDecimals(value) : value;
+  const format = FIGURE_FORMATS[name];
+  const text = format ? format(value) : value;
   const input = document.querySelector('#update-form [name="' + name + '"]');
   if (!input) return;
   input.value = text;
