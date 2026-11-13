@@ -391,20 +391,22 @@
 
   /* The columns size to what is in them and share the panel's width, so the table fits the
      panel whole — the old 1080px min-width forced a horizontal scrollbar long before the panel
-     ran out of room. Only a phone narrow enough that ten nowrap columns cannot fit (each head
+     ran out of room. Only a phone narrow enough that eleven nowrap columns cannot fit (each head
      is at least as wide as "Antifragile") still scrolls, which is why the .table-scroll wrapper
-     stays. */
+     stays. 14px rather than the old 15px since the win-probability column (2026-11-07) widened
+     the eleven columns' floor by ~90px: this size and the 8px padding below give that back, so
+     the table still fits whole down to the ~870px split-screen. */
   .data-table {
     width: 100%;
     min-width: 0;
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 15px;
+    font-size: 14px;
   }
 
   .data-table th,
   .data-table td {
-    padding: 12px 10px;
+    padding: 11px 8px;
     border-bottom: 1px solid var(--line);
     border-right: 1px solid #eaeff7;
     text-align: left;
@@ -419,9 +421,9 @@
     border-bottom: 1px solid #d5dfee;
     background: #f1f5fc;
     color: var(--ink-soft);
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: .08em;
+    letter-spacing: .05em;
     text-transform: uppercase;
   }
 
@@ -468,9 +470,9 @@
   .sort-btn {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     width: 100%;
-    padding: 12px 10px;
+    padding: 11px 8px;
     border: 0;
     background: transparent;
     color: inherit;
@@ -489,9 +491,10 @@
     outline-offset: -3px;
   }
 
-  /* The arrow shows on the sorted column only, but its 9px always holds, so turning the
-     sort on or off never shifts the label. */
-  .sort-mark { flex: none; width: 9px; font-size: 9px; line-height: 1; }
+  /* The arrow shows on the sorted column only, but its 8px always holds, so turning the
+     sort on or off never shifts the label. (8px and a 4px gap rather than 9 and 6: eleven heads
+     carry that space each, and the win-probability column made every pixel count.) */
+  .sort-mark { flex: none; width: 8px; font-size: 8px; line-height: 1; }
 
   /* The sorted head: a deeper tint than its neighbours, blue ink and a 2px rule, so the column
      the table is ordered by reads at a glance (the tint sits on the button, never on the sticky
@@ -509,10 +512,10 @@
 
   /* The name is a single line that never grows past a name's worth of room: the cell holds a
      .name-fit span capped at 260px, and a long name shortens its own font (fitCompanyNames()
-     walks the column's size down from 15px, floor 12px, and keeps the largest size that fits)
-     instead of wrapping onto a second line or pushing the columns after it. A name too long for
-     even 12px keeps the full size and ends in an ellipsis, so no name can force a sideways
-     scroll. */
+     walks the column's size down from the table's own size, floor 3px below it, and keeps the
+     largest size that fits) instead of wrapping onto a second line or pushing the columns after
+     it. A name too long for even the floor keeps the full size and ends in an ellipsis, so no
+     name can force a sideways scroll. */
   .data-table td.cell-company { font-weight: 600; white-space: nowrap; }
   .data-table .name-fit {
     display: inline-block;
@@ -522,8 +525,8 @@
     vertical-align: bottom;
   }
 
-  /* The cap gives ground as the window narrows, because ten columns at their own width and a
-     260px name no longer fit a laptop panel (the ten measure ~915px with a bare name). The
+  /* The cap gives ground as the window narrows, because eleven columns at their own width and a
+     260px name no longer fit a laptop panel (the eleven measure ~825px with a bare name). The
      padding steps below — the head buttons included, since the head's padding lives on them —
      hold the sideways scroll off down to the ~870px split-screen; below that the table is
      genuinely wider than the panel and the .table-scroll wrapper takes over. */
@@ -533,15 +536,15 @@
   @media (max-width: 1024px) {
     .data-table .name-fit { max-width: 150px; }
     .data-table th,
-    .data-table td { padding: 12px 7px; }
-    /* The head's padding lives on its button (see .sort-btn), so the ten heads — the widest
+    .data-table td { padding: 11px 6px; }
+    /* The head's padding lives on its button (see .sort-btn), so the eleven heads — the widest
        thing in a narrow table — have to give ground with the body cells or nothing shrinks. */
-    .data-table .sort-btn { padding: 12px 7px; }
+    .data-table .sort-btn { padding: 11px 6px; }
   }
   @media (max-width: 960px) {
     .data-table th,
-    .data-table td { padding: 12px 5px; }
-    .data-table .sort-btn { padding: 12px 5px; }
+    .data-table td { padding: 11px 4px; }
+    .data-table .sort-btn { padding: 11px 4px; }
   }
   @media (max-width: 940px) {
     .data-table .name-fit { max-width: 96px; }
@@ -549,7 +552,7 @@
   .cell-symbol {
     color: var(--blue-ink);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 13.5px;
+    font-size: 13px;
     letter-spacing: .03em;
   }
   .cell-num { font-variant-numeric: tabular-nums; }
@@ -581,13 +584,13 @@
   .rank-pill {
     display: inline-flex;
     justify-content: center;
-    min-width: 26px;
-    padding: 3px 8px;
+    min-width: 24px;
+    padding: 3px 7px;
     border: 1px solid #f0d98d;
     border-radius: 999px;
     background: var(--amber-soft);
     color: #6b5300;
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 700;
   }
 
@@ -735,14 +738,14 @@
       <table class="data-table">
         <caption class="sr-only">
           Companies with symbol, moat, cyclical, antifragile, growth, WL,
-          Kelly f*, last price and rank. Every row opens that company's file.
+          win probability, Kelly f*, last price and rank. Every row opens that company's file.
         </caption>
         <!-- Every column name is a button: a click orders the table by that column, in the
              direction the column is normally read — a name or symbol A→Z (0→9 inside a
              symbol), a score or ratio biggest first, the rank with the best grade on top —
              and a second click on the same name flips it. aria-sort carries the state (it is
              also what draws the arrow). The head is static markup, so one listener on the row
-             (handleSortClick) serves all ten, however often the body is re-drawn. -->
+             (handleSortClick) serves all eleven, however often the body is re-drawn. -->
         <thead>
           <tr>
             <th scope="col" aria-sort="none">
@@ -767,6 +770,9 @@
               <button type="button" class="sort-btn">WL<span class="sort-mark" aria-hidden="true"></span></button>
             </th>
             <th scope="col" aria-sort="none">
+              <button type="button" class="sort-btn">Win prob<span class="sort-mark" aria-hidden="true"></span></button>
+            </th>
+            <th scope="col" aria-sort="none">
               <button type="button" class="sort-btn">Kelly f*<span class="sort-mark" aria-hidden="true"></span></button>
             </th>
             <th scope="col" aria-sort="none">
@@ -779,7 +785,7 @@
         </thead>
         <tbody id="companies-body">
           <tr>
-            <td class="state-cell" colspan="10">Loading companies&hellip;</td>
+            <td class="state-cell" colspan="11">Loading companies&hellip;</td>
           </tr>
         </tbody>
       </table>
@@ -835,6 +841,13 @@ const VIEW_PAGE = 'viewcompany.html';
 const SYMBOL_KEYS = ['symbol', 'ticker', 'code'];
 
 /**
+ * The spellings a win probability may arrive under: `winning_probability` is the one the API
+ * stores (a fraction 0..1), the rest are short spellings a response may use instead. They are
+ * the names update-score.html reads its box from too, so one record feeds both pages.
+ */
+const PROBABILITY_KEYS = ['winning_probability', 'winningProbability', 'win_prob', 'winProb', 'probability'];
+
+/**
  * Column map for the analysis table, in render order. The static <thead> in the
  * markup follows the same order — update both together if a column changes.
  * "keys" lists accepted payload spellings so snake_case or camelCase responses
@@ -842,7 +855,8 @@ const SYMBOL_KEYS = ['symbol', 'ticker', 'code'];
  * the row's link to the company file (see rowHref()); "pill" draws a rank pill;
  * "decimals" rounds a float column for display — Kelly f* to two decimals and the
  * last price to two (398.79998779296875 → "398.80", the figure viewcompany.html's
- * Current price tile prints).
+ * Current price tile prints); "percent" prints a 0..1 fraction as a percentage
+ * (the win probability, 0.725 → "72.5%").
  * "sort" is how a figure in the column compares — 'number' for a score or a ratio,
  * 'text' for a name, a symbol or a grade — and "dir" is the direction the column is
  * normally read in, which is what its first header click applies: A→Z for the
@@ -857,6 +871,7 @@ const COLUMNS = [
   { keys: ['anti_fragile_score', 'antifragileScore', 'antifragile'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
   { keys: ['growth_score', 'growthScore', 'growth'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
   { keys: ['wl_ratio_base', 'wlRatioBase', 'wl_base', 'wlbase'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
+  { keys: PROBABILITY_KEYS, cellClass: 'cell-num', sort: 'number', dir: 'desc', percent: true },
   { keys: ['kelly_f', 'kellyF', 'kelly'], cellClass: 'cell-num', sort: 'number', dir: 'desc', decimals: 2 },
   { keys: ['current_price', 'currentPrice', 'latest_price', 'latestPrice', 'price'], cellClass: 'cell-num', sort: 'number', dir: 'desc', decimals: 2 },
   { keys: ['rank'], cellClass: 'cell-num', pill: true, sort: 'text', dir: 'asc' }
@@ -960,6 +975,27 @@ function gradeOf(value) {
 function formatFigure(value, decimals) {
   const number = toNumber(value);
   return number === null ? EMPTY : number.toFixed(decimals);
+}
+
+/**
+ * Input: a win probability as a company record carries it — `winning_probability`, a fraction
+ *        0..1 (0.725 is seventy-two and a half percent), or null / "" / anything non-numeric.
+ * Output: the figure as a percentage ("72.5%", "65%", "0%"), or the em-dash placeholder.
+ * Action: reads the value through toNumber (a string figure, commas or a trailing % still
+ *         parse), treats a figure inside 0..1 as the fraction the API stores and multiplies it
+ *         by 100, leaves a figure already above 1 as the percentage it must be, and prints one
+ *         decimal at most; anything non-numeric becomes EMPTY.
+ * Role: prints the Win prob column — the same 0..1 → percentage reading update-score.html's
+ *       Winning probability box gives, and the same helper portfolioanalytics.html draws its
+ *       win_prob column with, so a record's probability looks the same wherever it is shown.
+ */
+function formatProbability(value) {
+  const number = toNumber(value);
+  if (number === null) return EMPTY;
+
+  const percent = number > 1 ? number : number * 100;
+  const rounded = Math.round(percent * 10) / 10;
+  return String(rounded) + '%';
 }
 
 /**
@@ -1175,7 +1211,8 @@ function renderTable(rows) {
       if (column.link) holder.className = 'name-fit';
 
       const raw = pick(record, column.keys);
-      const text = column.decimals === undefined ? asText(raw) : formatFigure(raw, column.decimals);
+      const text = column.percent ? formatProbability(raw)
+        : column.decimals === undefined ? asText(raw) : formatFigure(raw, column.decimals);
       if (column.link && href) {
         const link = document.createElement('a');
         link.className = 'cell-link';
@@ -1210,12 +1247,12 @@ function renderTable(rows) {
 /**
  * Input: none (reads the name cells of the table that is on screen).
  * Output: none.
- * Action: gives the whole name column one font-size — 15px first, then half a pixel smaller
- *         each pass, stopping at 12px — and keeps the largest size at which no .name-fit span
- *         overflows its cap, so every row keeps the same size. When even 12px cannot fit the
- *         longest name, the column goes back to the full 15px and that one name ends in an
- *         ellipsis (the stylesheet's text-overflow): shrinking every row for a name that still
- *         would not fit whole buys nothing.
+ * Action: gives the whole name column one font-size — the table's own size first (14px), then
+ *         half a pixel smaller each pass, stopping 3px below it (11px) — and keeps the largest
+ *         size at which no .name-fit span overflows its cap, so every row keeps the same size.
+ *         When even the floor cannot fit the longest name, the column goes back to the full
+ *         size and that one name ends in an ellipsis (the stylesheet's text-overflow): shrinking
+ *         every row for a name that still would not fit whole buys nothing.
  * Role: a long company name shortens its own font instead of stretching the name column or
  *       wrapping onto a second line, which is what keeps the table inside the panel.
  */
@@ -1224,7 +1261,12 @@ function fitCompanyNames() {
     document.querySelectorAll('.data-table td.cell-company'));
   if (!cells.length) return;
 
-  for (let size = 15; size >= 12; size -= 0.5) {
+  // Read the size rather than hard-coding it: the table's own font-size sets how big a name may
+  // be, and the floor walks down from there.
+  const table = document.querySelector('.data-table');
+  const base = parseFloat(table ? getComputedStyle(table).fontSize : '') || 14;
+
+  for (let size = base; size >= base - 3; size -= 0.5) {
     for (const cell of cells) cell.style.fontSize = size + 'px';
 
     const overflows = cells.some(function (cell) {
