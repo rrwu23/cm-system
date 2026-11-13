@@ -17,6 +17,14 @@
     --amber-strong: #e5a900;
     --amber-soft: #fff5cc;
     --amber-ink: #3a2c00;
+    /* The rank pill's other two moods: A-D light green, F pink, while E keeps the amber above.
+       Only the flat table pill uses these (see .rank-pill[data-grade]). */
+    --green-soft: #e9f7ed;
+    --green-line: #a8ddb8;
+    --green-ink: #123a24;
+    --pink-soft: #fdecf1;
+    --pink-line: #f3c3d0;
+    --pink-ink: #5f1230;
     --blue-soft: #e4edfa;
     --blue-line: #c2d4ee;
     --blue-ink: #21456f;
@@ -583,6 +591,25 @@
     font-weight: 700;
   }
 
+  /* A grade's strength, read off the pill itself: A-D light green, E the amber above, F pink —
+     the one colour in a table of figures that says "this one needs a second look". The letter
+     rides on the pill as data-grade (gradeOf() writes it), so the colour is a rule here and the
+     script stays colour-blind. */
+  .rank-pill[data-grade="A"],
+  .rank-pill[data-grade="B"],
+  .rank-pill[data-grade="C"],
+  .rank-pill[data-grade="D"] {
+    border-color: var(--green-line);
+    background: var(--green-soft);
+    color: var(--green-ink);
+  }
+
+  .rank-pill[data-grade="F"] {
+    border-color: var(--pink-line);
+    background: var(--pink-soft);
+    color: var(--pink-ink);
+  }
+
   /* Loading / empty / error rows span the whole table */
   .state-cell {
     padding: 44px 18px;
@@ -908,6 +935,19 @@ function toNumber(value) {
 }
 
 /**
+ * Input: a rank as the API stores it — a grade letter, in any case, or anything else.
+ * Output: 'A'–'F' when the value starts with one of those letters, otherwise ''.
+ * Action: uppercases the first character and keeps it only when it is a grade the app uses.
+ * Role: the pill's colour is the CSS rule .rank-pill[data-grade], so this is the one place
+ *       that decides which grade a row wears — 'a', 'A ' and 'A2' all colour like 'A', while a
+ *       blank or a word gives '' and the pill keeps its amber.
+ */
+function gradeOf(value) {
+  const letter = String(value === null || value === undefined ? '' : value).trim().charAt(0).toUpperCase();
+  return letter && 'ABCDEF'.indexOf(letter) !== -1 ? letter : '';
+}
+
+/**
  * Input: a figure from a company record (Kelly f* is stored at full float precision,
  *        0.4833819241982507, and so is the last price, 398.79998779296875) and how many
  *        decimals the column wants shown.
@@ -1146,6 +1186,10 @@ function renderTable(rows) {
         const pill = document.createElement('span');
         pill.className = 'rank-pill';
         pill.textContent = text;
+        // The grade rides on the pill so .rank-pill[data-grade] can colour it: green for A-D,
+        // the amber it already wears for E, pink for F. No grade, no attribute.
+        const grade = gradeOf(text);
+        if (grade) pill.dataset.grade = grade;
         holder.appendChild(pill);
       } else {
         holder.textContent = text;

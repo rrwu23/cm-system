@@ -17,6 +17,14 @@
     --amber-strong: #e5a900;
     --amber-soft: #fff5cc;
     --amber-ink: #3a2c00;
+    /* The rank pill's other two moods: A-D light green, F pink, and E keeps the amber above
+       (see .rank-pill[data-grade]) */
+    --green-soft: #e9f7ed;
+    --green-line: #a8ddb8;
+    --green-ink: #123a24;
+    --pink-soft: #fdecf1;
+    --pink-line: #f3c3d0;
+    --pink-ink: #5f1230;
     --blue-soft: #e4edfa;
     --blue-line: #c2d4ee;
     --blue-ink: #21456f;
@@ -193,6 +201,24 @@
     color: #6b5300;
     font-size: 13px;
     font-weight: 700;
+  }
+
+  /* A grade's strength, read off the pill itself: A-D light green, E the amber above, F pink.
+     The grade rides on the pill as data-grade (renderNote() writes it), so the colour lives
+     here and the script stays colour-blind. */
+  .rank-pill[data-grade="A"],
+  .rank-pill[data-grade="B"],
+  .rank-pill[data-grade="C"],
+  .rank-pill[data-grade="D"] {
+    border-color: var(--green-line);
+    background: var(--green-soft);
+    color: var(--green-ink);
+  }
+
+  .rank-pill[data-grade="F"] {
+    border-color: var(--pink-line);
+    background: var(--pink-soft);
+    color: var(--pink-ink);
   }
 
   /* ---------- Eight tiles: four scores, symbol, price, WL and Kelly f* ----------
@@ -836,6 +862,20 @@ function toNumber(value) {
 }
 
 /**
+ * Input: a rank as the API stores it — a grade letter, in any case, or anything else.
+ * Output: 'A'–'F' when the value starts with one of those letters, otherwise ''.
+ * Action: uppercases the first character and keeps it only when it is a grade the app uses.
+ * Role: the pill's colour is the CSS rule .rank-pill[data-grade], so this is the one place
+ *       that decides which grade the company wears — 'a' colours like 'A', while a blank or a
+ *       word gives '' and the pill keeps its amber.
+ */
+function gradeOf(value) {
+  const text = value === null || value === undefined ? '' : String(value).trim();
+  const letter = text.charAt(0).toUpperCase();
+  return letter && 'ABCDEF'.indexOf(letter) !== -1 ? letter : '';
+}
+
+/**
  * Input: a score as stored (usually an integer 0-100).
  * Output: the score as text ("96"), or the em-dash placeholder.
  * Action: keeps whole marks whole and shows at most one decimal otherwise.
@@ -1409,7 +1449,9 @@ function renderTiles(record) {
  *         the scores and the price were stored, e.g.
  *         "Rank A · Scores dated 2026/10/29 · Price 2026/10/29 17:00" - the price stamp
  *         arrives as 22:00Z and formatStamp() reads it in the viewer's own zone, so the
- *         hour on screen is 17:00 in November and 18:00 in July for an Eastern reader.
+ *         hour on screen is 17:00 in November and 18:00 in July for an Eastern reader. The
+ *         pill also wears its grade as data-grade, so the page's one colour says A-D green,
+ *         E amber, F pink.
  * Role: says how current the numbers above the tables are, without inventing
  *       anything: a company with no stored scores says so.
  */
@@ -1423,6 +1465,10 @@ function renderNote(record) {
     const pill = document.createElement('span');
     pill.className = 'rank-pill';
     pill.textContent = 'Rank ' + rank;
+    // The grade rides on the pill so .rank-pill[data-grade] can colour it: green for A-D,
+    // the amber it already wears for E, pink for F. No grade, no attribute.
+    const grade = gradeOf(rank);
+    if (grade) pill.dataset.grade = grade;
     note.appendChild(pill);
   }
 

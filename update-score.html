@@ -20,6 +20,18 @@
     --amber-lit: #fffdf2;
     --amber-ink: #3a2c00;
     --amber-placeholder: #9c8438;
+    /* The rank box's other two moods: A-D light green, F pink, and E keeps the amber above.
+       Each mood carries the same five tones the amber pair has, plus the focus ring's colour. */
+    --green-soft: #e9f7ed;
+    --green-strong: #43ab68;
+    --green-ink: #123a24;
+    --green-hover: #f4fbf6;
+    --green-lit: #fbfefc;
+    --pink-soft: #fdecf1;
+    --pink-strong: #e2628a;
+    --pink-ink: #5f1230;
+    --pink-hover: #fef4f7;
+    --pink-lit: #fffbfc;
     --blue-soft: #e4edfa;
     --blue-line: #c2d4ee;
     --blue-ink: #21456f;
@@ -328,9 +340,17 @@
 
   /* ---------- Rank: the sketch's filled box with the grade in it ----------
      A grade is picked from the six letters the app grades with (calc.js's normalizeGrade),
-     so this is a <select> — but it wears the same amber box as every figure and drops the
-     native chrome: the letter itself is what says "this is the grade". */
+     so this is a <select> — but it wears the same filled box as every figure (one frame, one
+     fill, one ink, a hover tone and a focus tone, all read from --rank-*) and drops the native
+     chrome: the letter itself is what says "this is the grade". The five defaults are amber;
+     the [data-grade] rules below swap them so A-D read green and F reads pink. */
   .rank-box {
+    --rank-fill: var(--amber-soft);
+    --rank-line: var(--amber-strong);
+    --rank-ink: var(--amber-ink);
+    --rank-hover: var(--amber-hover);
+    --rank-lit: var(--amber-lit);
+    --rank-ring: rgba(229, 169, 0, .28);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -340,24 +360,48 @@
     max-width: 168px;
     min-height: 92px;
     padding: 10px 14px;
-    border: 2px solid var(--amber-strong);
+    border: 2px solid var(--rank-line);
     border-radius: var(--radius);
-    background: var(--amber-soft);
+    background: var(--rank-fill);
     box-shadow: var(--shadow-sm);
     cursor: pointer;
     transition: background-color .16s ease, box-shadow .16s ease;
   }
 
-  .rank-box:hover { background: var(--amber-hover); }
+  .rank-box:hover { background: var(--rank-hover); }
 
   .rank-box:focus-within {
-    background: var(--amber-lit);
-    box-shadow: 0 0 0 4px rgba(229, 169, 0, .28), var(--shadow-sm);
+    background: var(--rank-lit);
+    box-shadow: 0 0 0 4px var(--rank-ring), var(--shadow-sm);
+  }
+
+  /* A grade's strength, read off the box itself: A-D light green, E the amber above, F pink.
+     syncRankBox() writes the grade as data-grade, so every colour lives in these rules. They
+     come before the empty state, so grey — "not graded yet" — outranks any grade. */
+  .rank-box[data-grade="A"],
+  .rank-box[data-grade="B"],
+  .rank-box[data-grade="C"],
+  .rank-box[data-grade="D"] {
+    --rank-fill: var(--green-soft);
+    --rank-line: var(--green-strong);
+    --rank-ink: var(--green-ink);
+    --rank-hover: var(--green-hover);
+    --rank-lit: var(--green-lit);
+    --rank-ring: rgba(67, 171, 104, .28);
+  }
+
+  .rank-box[data-grade="F"] {
+    --rank-fill: var(--pink-soft);
+    --rank-line: var(--pink-strong);
+    --rank-ink: var(--pink-ink);
+    --rank-hover: var(--pink-hover);
+    --rank-lit: var(--pink-lit);
+    --rank-ring: rgba(226, 98, 138, .28);
   }
 
   /* A click anywhere in the box lands on the select, so the name inside is decoration only */
   .rank-name {
-    color: var(--amber-ink);
+    color: var(--rank-ink);
     font-size: 12px;
     font-weight: 600;
     opacity: .72;
@@ -370,7 +414,7 @@
     padding: 0;
     border: 0;
     background: transparent;
-    color: var(--amber-ink);
+    color: var(--rank-ink);
     font: inherit;
     font-size: 24px;
     font-weight: 700;
@@ -385,7 +429,7 @@
   .rank-select:focus { outline: none; }
 
   /* An ungraded record prints grey, the same rule the analysis sheet's pill follows:
-     grey means "not graded yet", amber means "graded". */
+     grey means "not graded yet", a colour means "graded". */
   .rank-box[data-state="empty"] {
     border-color: #cbd7e8;
     background: #f1f4fa;
@@ -655,8 +699,9 @@
 
               <!--
                 Rank: one of the six letters the app grades with. The box states the stored
-                grade on load (amber box) and turns grey with the empty option when the record
-                has none, so "not graded yet" is visible at a glance.
+                grade on load — light green for A-D, amber for E, pink for F — and turns grey
+                with the empty option when the record has none, so "not graded yet" is visible
+                at a glance.
               -->
               <div class="field">
                 <label class="rank-box" id="rank-box" data-state="empty" for="rank">
@@ -1251,17 +1296,22 @@ function setValue(name, value) {
 /**
  * Input: the `name` of a file-less sheet's box — here only 'rank' is special.
  * Output: none.
- * Action: swaps the amber/grey state of the rank box to match the select's current value.
- * Role: keeps "graded" (amber) and "not graded yet" (grey) in step with the control, on load
- *       and after every change of the grade.
+ * Action: swaps the box's state (graded / not graded yet) and its mood — data-grade gets the
+ *         letter, so .rank-box[data-grade] paints A-D green and F pink while E keeps the amber.
+ * Role: keeps the box's colour in step with the grade in it, on load and after every change.
  */
 function syncRankBox() {
   const select = document.getElementById('rank');
   const box = document.getElementById('rank-box');
   if (!select || !box) return;
 
-  const known = GRADES.indexOf(String(select.value).trim().toUpperCase()) !== -1;
+  const grade = String(select.value).trim().toUpperCase();
+  const known = GRADES.indexOf(grade) !== -1;
   box.dataset.state = known ? 'ready' : 'empty';
+  // A-D green, E amber (no attribute), F pink — the colour rule reads this. No grade, no
+  // attribute, so the grey empty state is all that is left.
+  if (known) box.dataset.grade = grade;
+  else delete box.dataset.grade;
 }
 
 /**
