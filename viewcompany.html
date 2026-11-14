@@ -166,7 +166,19 @@
   /* ---------- Company identity: the page title is the company name ---------- */
   .identity { margin: 26px 0 30px; }
 
+  /* The name and the three action buttons share one line: the name takes the slack, the
+     buttons keep their own width on the right (margin-left: auto), and once the name is
+     down to 240px the buttons drop to their own line still right-aligned. */
+  .identity-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+  }
+
   .company-name {
+    flex: 1 1 240px;
+    min-width: 0;
     margin: 0;
     font-size: clamp(30px, 4.2vw, 44px);
     font-weight: 700;
@@ -177,6 +189,78 @@
 
   .company-name[data-state="loading"],
   .company-name[data-state="empty"] { color: var(--ink-soft); }
+
+  /* ---------- The three things you can do to the company on screen ----------
+     Update analysis and Update score open the update sheets for THIS company
+     (update-analysis.html?company_name=<name>, the address middle.html's Next writes), so
+     they sit on the heading's own line and stay grey until a company is open. Analytics is a
+     disabled <button>: its page is still empty, so there is nowhere to send anyone. */
+  .company-actions {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-left: auto;
+  }
+
+  /* Same shape as home.html's buttons, sized for a header: white, a blue-grey rule, blue ink. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    user-select: none;
+    transition: transform .16s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease;
+  }
+
+  .btn-quiet {
+    min-height: 44px;
+    padding: 0 18px;
+    border: 1px solid var(--blue-line);
+    background: var(--surface);
+    color: var(--blue-ink);
+    font-size: 14.5px;
+    font-weight: 600;
+    letter-spacing: -.005em;
+    white-space: nowrap;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .btn-quiet:hover {
+    transform: translateY(-1px);
+    background: var(--blue-soft);
+    border-color: #a9c6e9;
+  }
+
+  .btn-quiet:active { transform: translateY(0); }
+
+  .btn-quiet:focus-visible { outline: 3px solid rgba(47, 111, 237, .38); outline-offset: 2px; }
+
+  /* A button with nowhere to go: grey, a not-allowed cursor, out of the tab order. The two
+     links wear is-disabled + aria-disabled until a company is open (setActions() decides);
+     Analytics is a really-disabled <button> because its page is still empty. */
+  .btn.is-disabled,
+  .btn[disabled],
+  .btn.is-disabled:hover,
+  .btn[disabled]:hover,
+  .btn.is-disabled:active,
+  .btn[disabled]:active,
+  .btn.is-disabled:focus-visible,
+  .btn[disabled]:focus-visible {
+    border-color: var(--line);
+    background: #e7e9ee;
+    color: var(--ink-faint);
+    box-shadow: none;
+    outline: none;
+    transform: none;
+    cursor: not-allowed;
+    /* A disabled <button> would otherwise fade by the browser's own opacity: keep it looking
+       exactly like the greyed links beside it. */
+    opacity: 1;
+  }
 
   .company-note {
     display: flex;
@@ -609,9 +693,36 @@
     <a class="home-link" href="home.html">&larr; Back to dashboard</a>
   </nav>
 
-  <!-- The heading is the company name from /companies-s/{symbol} -->
+  <!-- The heading is the company name from /companies-s/{symbol}, and the three things you can
+       do to that company ride on the same line, to its right:
+         Update analysis -> update-analysis.html?company_name=<name>
+         Update score    -> update-score.html?company_name=<name>
+         Analytics       -> nowhere yet: its page is empty, so it is a disabled button.
+       setActions() points the two links at the company on screen and keeps all three grey
+       while no company is open (the state the page loads in). -->
   <section class="identity" aria-labelledby="company-name">
-    <h1 class="company-name" id="company-name" data-state="loading">Company view</h1>
+    <div class="identity-row">
+      <h1 class="company-name" id="company-name" data-state="loading">Company view</h1>
+      <nav class="company-actions" aria-label="Company actions">
+        <a class="btn btn-quiet is-disabled"
+           id="action-update-analysis"
+           href="update-analysis.html"
+           aria-disabled="true"
+           tabindex="-1"
+           title="Open a company first">Update analysis</a>
+        <a class="btn btn-quiet is-disabled"
+           id="action-update-score"
+           href="update-score.html"
+           aria-disabled="true"
+           tabindex="-1"
+           title="Open a company first">Update score</a>
+        <button class="btn btn-quiet"
+                id="action-analytics"
+                type="button"
+                disabled
+                title="The analytics page is empty for now">Analytics</button>
+      </nav>
+    </div>
     <p class="company-note" id="company-note" role="status" aria-live="polite">Reading the company file&hellip;</p>
   </section>
 
@@ -753,6 +864,19 @@ const SIGNED_OUT_PAGE = 'login.html';
 
 /** Where a chip in the picker points: the same page, keyed by symbol. */
 const SELF_PAGE = 'viewcompany.html';
+
+/**
+ * The heading's two live buttons: the element id the markup gives each one, and the sheet it
+ * opens. Both sheets read the company off ?company_name= — the key middle.html's Next writes —
+ * so one builder in setActions() serves the pair.
+ */
+const UPDATE_BUTTONS = [
+  { id: 'action-update-analysis', page: 'update-analysis.html' },
+  { id: 'action-update-score', page: 'update-score.html' }
+];
+
+/** The query key a company travels on: what update-analysis.html / update-score.html read. */
+const NAME_PARAM = 'company_name';
 
 /**
  * The thirteen analysis sections, in the order the paper form lists them (and
@@ -1418,6 +1542,59 @@ function setName(text, state) {
 }
 
 /**
+ * Input: the company as it should travel in a query — the record's company_name, else its
+ *        symbol, i.e. the same value setName() puts in the heading — or '' when no company is
+ *        open on the page.
+ * Output: none.
+ * Action: points Update analysis and Update score at their sheet carrying
+ *         ?company_name=<the company>; with no company to act on it puts the bare pages back
+ *         and greys both links (is-disabled + aria-disabled, out of the tab order, a tooltip
+ *         that says why). Analytics is never touched: it is a disabled <button> in the markup,
+ *         because the analytics page is empty.
+ * Role: the three buttons beside the heading — a click, a middle-click and the keyboard all
+ *       agree with the company currently drawn, and a record with no name at all never sends
+ *       anyone to a sheet for the em dash.
+ */
+function setActions(company) {
+  const name = asText(company);
+  const usable = name !== EMPTY;
+
+  for (const button of UPDATE_BUTTONS) {
+    const link = document.getElementById(button.id);
+    if (!link) continue;
+
+    if (!usable) {
+      link.href = button.page;
+      link.classList.add('is-disabled');
+      link.setAttribute('aria-disabled', 'true');
+      link.setAttribute('tabindex', '-1');
+      link.title = 'Open a company first';
+      continue;
+    }
+
+    link.href = button.page + '?' + NAME_PARAM + '=' + encodeURIComponent(name);
+    link.classList.remove('is-disabled');
+    link.removeAttribute('aria-disabled');
+    link.removeAttribute('tabindex');
+    link.removeAttribute('title');
+  }
+}
+
+/**
+ * Input: the click event of one of the two link buttons.
+ * Output: none (it may preventDefault).
+ * Action: swallows the click while the link carries aria-disabled — the state setActions()
+ *         gives it before any company is drawn — so a mouse click, a middle-click and the
+ *         Enter path all stop there instead of opening a sheet for a company that is not on
+ *         screen. An enabled link is left alone.
+ * Role: what makes the greyed-out state mean something; an <a> has no disabled attribute of
+ *       its own, so the guard is the behaviour (the same one home.html's "View company" has).
+ */
+function handleActionClick(event) {
+  if (event.currentTarget.getAttribute('aria-disabled') === 'true') event.preventDefault();
+}
+
+/**
  * Input: one company record.
  * Output: none.
  * Action: fills each tile in TILES from the record, formats its value by kind,
@@ -1756,8 +1933,9 @@ function renderReports(record) {
 /**
  * Input: one company record.
  * Output: none.
- * Action: names the page after the company, writes the note, the eight tiles and
- *         the thirteen report tables, hides the picker and retitles the tab.
+ * Action: names the page after the company, points the two update buttons at it, writes the
+ *         note, the eight tiles and the thirteen report tables, hides the picker and retitles
+ *         the tab.
  * Role: the single draw for a loaded company.
  */
 function renderRecord(record) {
@@ -1766,6 +1944,7 @@ function renderRecord(record) {
   const heading = name === EMPTY ? symbol : name;
 
   setName(heading === EMPTY ? 'Company view' : heading, heading === EMPTY ? 'empty' : 'ready');
+  setActions(heading);
   renderNote(record);
   renderTiles(record);
   renderReports(record);
@@ -1777,13 +1956,14 @@ function renderRecord(record) {
 /**
  * Input: the sentence to show under the heading.
  * Output: none.
- * Action: resets the heading, the eight tiles and the report area to their
- *         placeholders and writes the sentence into the note.
+ * Action: resets the heading, greys the two update buttons, resets the eight tiles and the
+ *         report area to their placeholders and writes the sentence into the note.
  * Role: the state behind "no company asked for yet", "no such company" and a
  *       failed read - the page never shows a half-filled file.
  */
 function renderBlank(message) {
   setName('Company view', 'loading');
+  setActions('');
   setNote(message);
   renderTiles({});
   const reports = document.getElementById('reports');
@@ -2073,8 +2253,8 @@ async function signOut() {
 /**
  * Input: none (the script sits at the end of <body>, so the DOM already exists).
  * Output: none.
- * Action: starts the username read and the company read together, and wires the
- *         sign-out button to signOut().
+ * Action: starts the username read and the company read together, wires the sign-out button
+ *         to signOut(), and gives the two update buttons their clicked-while-grey guard.
  * Role: single entry point for the page.
  */
 function init() {
@@ -2083,6 +2263,11 @@ function init() {
 
   const signOutButton = document.getElementById('signout-button');
   if (signOutButton) signOutButton.addEventListener('click', signOut);
+
+  for (const button of UPDATE_BUTTONS) {
+    const link = document.getElementById(button.id);
+    if (link) link.addEventListener('click', handleActionClick);
+  }
 }
 
 init();
