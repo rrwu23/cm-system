@@ -738,7 +738,7 @@
       <div class="sheet-footer">
         <p class="foot-hint" id="submit-hint" role="status" aria-live="polite">
           Submit posts the ten figures on this sheet to /update_analysis &mdash; no reports are
-          attached, so every stored document stays as it is.
+          attached, so every stored document stays as it is. A saved update opens the company page.
         </p>
         <div class="buttons">
           <button class="btn btn-soft" type="reset">Reset</button>
@@ -854,12 +854,14 @@
  *          (the key may be a symbol or a name - but a name answers an EMPTY record today,
  *          see findInList(), which is why a name falls back to the list read)
  *   GET  https://api.kidsfunbank.ca/companies         -> { count, companies: [ flat rows ] }
- *   POST https://api.kidsfunbank.ca/update_analysis   -> the answer the footer reports
+ *   POST https://api.kidsfunbank.ca/update_analysis   -> the answer the footer reports; an
+ *          accepted save then opens viewcompany.html?symbol=<symbol>, the company's own page
  *   POST https://api.kidsfunbank.ca/logout            -> clears the session_id cookie
  *
  * This is the page middle.html?type=update-score hands over to:
  * update-score.html?company_name=<the name>. It reads that company and fills the three
- * frames with what is already on file, so an update starts from the stored figures.
+ * frames with what is already on file, so an update starts from the stored figures — and a
+ * save the API accepts hands the analyst back to that company's file, figures refreshed.
  *
  * What Submit sends (multipart/form-data, every part named as the column it is):
  *   company_name, symbol, moat_score, cyclical_score, anti_fragile_score, growth_score,
@@ -889,6 +891,13 @@ const ENDPOINTS = {
 const SUBMIT_LABEL = '/update_analysis';
 const SIGNED_OUT_PAGE = 'login.html';
 const REQUEST_TIMEOUT_MS = 8000;
+
+// Where an accepted save lands: the company's own page, addressed the way viewcompany.html
+// reads it (?symbol=) — the same page home.html's View company opens — after a pause short
+// enough not to wait and long enough to read the footer's "Saved" line.
+const COMPANY_PAGE = 'viewcompany.html';
+const SYMBOL_PARAM = 'symbol';
+const REDIRECT_DELAY_MS = 600;
 
 // The six letters the app grades with — the same list calc.js normalizes a rank against.
 const GRADES = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -951,11 +960,14 @@ const RULES = {
 };
 
 // What the footer says before anything is sent, and after a Reset.
-const DEFAULT_HINT = 'Submit posts the ten figures on this sheet to /update_analysis \u2014 no reports are attached, so every stored document stays as it is.';
+const DEFAULT_HINT = 'Submit posts the ten figures on this sheet to /update_analysis \u2014 no reports are attached, so every stored document stays as it is. A saved update opens the company page.';
 
 const LOG_PREFIX = '[update-score]';
 
 let submitting = false;
+// True from the moment a save is accepted until the page leaves for the company page: the
+// pause before the jump is not a second chance to post the sheet.
+let leaving = false;
 
 /**
  * Input: none (reads window.location.search).
@@ -1513,6 +1525,18 @@ function buildSubmission(form) {
 }
 
 /**
+ * Input: the symbol the record carries.
+ * Output: the address of that company's page.
+ * Action: builds viewcompany.html?symbol=<symbol>, percent-encoded.
+ * Role: the one place an accepted save names its destination, so the page that opens is
+ *       always the record that was just written — the address viewcompany.html reads and
+ *       home.html's View company already uses.
+ */
+function companyPageFor(symbol) {
+  return COMPANY_PAGE + '?' + SYMBOL_PARAM + '=' + encodeURIComponent(symbol || '');
+}
+
+/**
  * Input: the <form> element and whether a save is in flight.
  * Output: none.
  * Action: disables Submit and Reset, renames Submit "Submitting…" and sets aria-busy on the form.
@@ -1537,13 +1561,14 @@ function setBusy(form, busy) {
  * Action: keeps the browser from posting, insists the record carries a company name and a
  *         symbol (the API looks the row up by symbol and 404s an unknown one), builds the body
  *         with buildSubmission(), POSTs it to /update_analysis as multipart/form-data, then
- *         reports the answer in the footer.
- * Role: the page's only write. Nothing navigates away, so a refused save leaves every figure
- *       exactly where the analyst typed it.
+ *         reports the answer in the footer — and, on an accepted save, opens the company's own
+ *         page (companyPageFor) so the new figures are read where they live.
+ * Role: the page's only write. Only an accepted save navigates: a refused one leaves every
+ *       figure exactly where the analyst typed it.
  */
 async function submitSheet(event) {
   if (event) event.preventDefault();
-  if (submitting) return null;
+  if (submitting || leaving) return null;
 
   const form = document.getElementById('update-form');
   if (!form) return null;
@@ -1585,7 +1610,17 @@ async function submitSheet(event) {
 
     if (response.ok) {
       setHint('Saved \u2014 ' + SUBMIT_LABEL + ' answered HTTP ' + response.status + ' (' +
-        submission.sent.parts + ' figure(s); every stored report was left as it is).', 'done');
+        submission.sent.parts + ' figure(s); every stored report was left as it is). ' +
+        'Opening the company page for ' + (company || symbol) + '\u2026', 'done');
+      // The save is in, so the reason to stay on this sheet is gone: send the analyst to the
+      // company's own page, where the figures just written are the ones on show.
+      leaving = true;
+      console.log(LOG_PREFIX + ' saved \u2192 ' + companyPageFor(symbol));
+
+      window.setTimeout(function () {
+        // assign, not replace: Back returns to this sheet, so a second pass is one key away.
+        window.location.assign(companyPageFor(symbol));
+      }, REDIRECT_DELAY_MS);
     } else if (response.status === 401 || response.status === 403) {
       setHint('Not saved \u2014 the session was refused (HTTP ' + response.status +
         '). Sign in again, then Submit once more.', 'error');
@@ -1609,7 +1644,9 @@ async function submitSheet(event) {
     return null;
   } finally {
     submitting = false;
-    setBusy(form, false);
+    // A save that is already on its way to the company page keeps Submit shut: the pause
+    // before the jump is not a second chance to post.
+    setBusy(form, leaving);
   }
 }
 
