@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sensitivity &middot; RR research</title>
+<style>
+  /* ---------- Design tokens: same amber + slate-blue accents as home.html ---------- */
+  :root {
+    --bg: #eef2f8;
+    --surface: #ffffff;
+    --ink: #17233b;
+    --ink-soft: #5c6a84;
+    --ink-faint: #8d99ae;
+    --line: #dde4ef;
+    --amber: #ffd24a;
+    --amber-strong: #e5a900;
+    --amber-soft: #fff5cc;
+    --amber-ink: #3a2c00;
+    /* The rank pill's other two moods: A-D light green, F pink, while E keeps the amber above
+       (see .rank-pill[data-grade]) */
+    --green-soft: #e9f7ed;
+    --green-line: #a8ddb8;
+    --green-ink: #123a24;
+    --pink-soft: #fdecf1;
+    --pink-line: #f3c3d0;
+    --pink-ink: #5f1230;
+    --blue-soft: #e4edfa;
+    --blue-line: #c2d4ee;
+    --blue-ink: #21456f;
+    /* One rule colour for every box on the page: the two areas at the top and the ladder under
+       them are ruled alike, like the paper sheet they were drawn from. */
+    --sheet-line: #c9d5e6;
+    --focus: #2f6fed;
+    --radius: 14px;
+    --shadow-sm: 0 1px 2px rgba(23, 35, 59, .06);
+    --shadow-md: 0 14px 32px -24px rgba(23, 35, 59, .55);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.4;
+    background:
+      radial-gradient(1100px 560px at 50% -260px, #ffffff 0%, rgba(255, 255, 255, 0) 72%),
+      var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .shell {
+    width: min(1040px, 100% - 40px);
+    margin-inline: auto;
+    padding: 26px 0 64px;
+  }
+
+  /* ---------- Top bar: "Welcome, <user>" + page stamp + Sign out ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 4px 0;
+  }
+
+  .welcome {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 20px;
+    min-width: 0;
+  }
+
+  .welcome .mark {
+    flex: none;
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    background: linear-gradient(140deg, var(--amber) 0%, var(--amber-strong) 100%);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .welcome .label { color: var(--ink-soft); font-weight: 500; }
+
+  .welcome .name {
+    font-weight: 700;
+    letter-spacing: -.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .welcome .name[data-state="offline"],
+  .welcome .name[data-state="empty"] { color: var(--ink-soft); }
+
+  .stamp {
+    flex: none;
+    padding: 6px 12px;
+    border: 1px dashed var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .65);
+    color: var(--ink-faint);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  .topbar-right {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Sign out: POSTs /logout so the API clears the HttpOnly session_id cookie */
+  .signout {
+    padding: 7px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease, opacity .15s ease;
+  }
+
+  .signout:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  .signout[disabled] { opacity: .6; cursor: progress; }
+
+  /* ---------- Breadcrumb back to the company this sheet belongs to ---------- */
+  .crumbs { margin: 22px 0 0; }
+
+  .home-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 13px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink-soft);
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-decoration: none;
+    transition: color .15s ease, border-color .15s ease;
+  }
+
+  .home-link:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  /* ---------- The two areas at the top of the paper sheet ----------
+     Output Area on the left: what the ladder works out for this company — its last, target
+     and bad price, the grade it earns and the price the next grade starts at. Input Area on
+     the right: the four assumptions the ladder is run from, plus the probability the thesis
+     holds. They are ruled like the sheet: a box around every cell, the label bold in the left
+     column, the figure right-aligned in the right one, and the assumption cells tinted blue so
+     a typed figure can never be mistaken for a result. */
+  .sheets {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 26px;
+    align-items: start;
+    margin: 22px 0 34px;
+  }
+
+  .sheet {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    font-size: 15px;
+  }
+
+  .sheet th,
+  .sheet td {
+    padding: 7px 12px;
+    border: 1px solid var(--sheet-line);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  /* The area's own name across the top of both columns ("Output Area" / "Input Area"). */
+  .sheet thead th {
+    border-bottom-width: 2px;
+    color: var(--ink);
+    font-size: 15.5px;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  /* Row labels stay bold, like the paper form, so the eye can run down one column of names. */
+  .sheet tbody th {
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  /* Figures are tabular and right-aligned, so 641.51 and 1060.00 line up on the decimal. */
+  .sheet td.cell-figure {
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    text-align: right;
+  }
+
+  /* The grade sits where a figure would, so the pill ends on the same right edge. */
+  .sheet td.cell-rank { text-align: right; }
+
+  /* A typed assumption fills its cell whole: the cell keeps no padding of its own, the input
+     inside it carries the same 12px/7px the other cells use and the blue the app gives every
+     input, so the tint stops exactly at the cell's rule. */
+  .sheet td.cell-input { padding: 0; }
+
+  .sheet-input {
+    width: 100%;
+    padding: 7px 12px;
+    border: 0;
+    border-radius: 0;
+    background: var(--blue-soft);
+    color: var(--blue-ink);
+    font: inherit;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+    text-align: right;
+    transition: background .15s ease;
+  }
+
+  .sheet-input:hover { background: #d8e6fa; }
+
+  /* Inset, because the tinted cell reaches the table's own edge. */
+  .sheet-input:focus {
+    outline: 2px solid var(--focus);
+    outline-offset: -3px;
+    background: #f6faff;
+  }
+
+  /* The grade a rung earns, in the app's one pill: A-D light green, E amber, F pink. The letter
+     rides on the pill as data-grade (the markup writes it today; the script that fills these
+     cells will write it the same way), so the colour lives here and the script stays
+     colour-blind. */
+  .rank-pill {
+    display: inline-flex;
+    justify-content: center;
+    min-width: 24px;
+    padding: 3px 8px;
+    border: 1px solid #f0d98d;
+    border-radius: 999px;
+    background: var(--amber-soft);
+    color: #6b5300;
+    font-size: 12.5px;
+    font-weight: 700;
+    font-variant-numeric: normal;
+    line-height: 1.2;
+  }
+
+  .rank-pill[data-grade="A"],
+  .rank-pill[data-grade="B"],
+  .rank-pill[data-grade="C"],
+  .rank-pill[data-grade="D"] {
+    border-color: var(--green-line);
+    background: var(--green-soft);
+    color: var(--green-ink);
+  }
+
+  .rank-pill[data-grade="F"] {
+    border-color: var(--pink-line);
+    background: var(--pink-soft);
+    color: var(--pink-ink);
+  }
+
+  /* ---------- The ladder: the same assumptions at fifteen market prices ---------- */
+  .panel {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+  }
+
+  .panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px 16px;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #fbfcff 0%, #f4f8fd 100%);
+  }
+
+  .panel-title {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  .panel-hint {
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: 13px;
+  }
+
+  /* A phone narrower than the six columns can hold scrolls the table, never the page. */
+  .table-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-scroll:focus-visible {
+    outline: 3px solid rgba(47, 111, 237, .38);
+    outline-offset: -3px;
+  }
+
+  .ladder {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15.5px;
+  }
+
+  .ladder th,
+  .ladder td {
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--line);
+    text-align: right;
+    vertical-align: middle;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The head is the sheet's own ruled box, so the six figure names read as one band above the
+     figures instead of drifting over them. */
+  .ladder thead th {
+    border: 1px solid var(--sheet-line);
+    border-top: 0;
+    background: #f1f5fc;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .01em;
+  }
+
+  .ladder tbody td {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .ladder tbody tr:last-child td { border-bottom: 0; }
+  .ladder tbody tr:hover td { background: #f8fbff; }
+
+  /* The grade column reads left, under its own name, where the pills line up in a column. */
+  .ladder th.cell-rank,
+  .ladder td.cell-rank { text-align: left; }
+
+  /* ---------- Narrower screens: one area over the other, a tighter ladder ---------- */
+  @media (max-width: 720px) {
+    .sheets {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 20px;
+      margin: 18px 0 28px;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .shell { width: min(1040px, 100% - 24px); }
+    .welcome { font-size: 17px; }
+    .welcome .mark { width: 28px; height: 28px; }
+    .stamp { display: none; }
+    .sheet { font-size: 14px; }
+    .sheet th,
+    .sheet td { padding: 6px 10px; }
+    .sheet thead th { font-size: 14.5px; }
+    .sheet-input { padding: 6px 10px; }
+    .ladder { font-size: 13.5px; }
+    /* Six columns on a phone: the padding and the size give way so the grade column — the
+       point of the sheet — stays on screen instead of hiding behind a sideways scroll. */
+    .ladder th,
+    .ladder td { padding: 7px 6px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+
+<body>
+<main class="shell">
+  <!-- Welcome line: "Welcome, <user>" — <user> is /getuser's user_name -->
+  <header class="topbar">
+    <div class="welcome">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="label">Welcome,</span>
+      <span class="name" id="username" data-state="loading">&hellip;</span>
+    </div>
+    <div class="topbar-right">
+      <span class="stamp">Sensitivity</span>
+      <button class="signout" id="signout-button" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <!-- The way back. viewcompany.html's "Sensitivity" button arrives here carrying the company it
+       was pressed for (?company_name=<name>, or ?symbol=… when the file was opened by symbol),
+       so the link names that company and returns to its file; opened on its own it says
+       "Back to dashboard" instead. syncBackLink() writes both. -->
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <a class="home-link" id="back-link" href="home.html">&larr; Back to dashboard</a>
+  </nav>
+
+  <h1 class="sr-only" id="page-title">Sensitivity</h1>
+
+  <!-- The paper sheet's two areas, side by side: the figures the ladder produces for this
+       company on the left (Output Area) and the assumptions it is run from on the right (Input
+       Area). The right-hand figures are <input>s — tinted blue, so a typed assumption can never
+       be read as a result — and hold the sheet's worked example until the sensitivity script
+       reads the company's own numbers into them; every <td> carries an id so that script has
+       somewhere to write (`#out-last-price`, `#in-target-eps`, …). -->
+  <section class="sheets" aria-label="Sensitivity sheets">
+    <table class="sheet">
+      <caption class="sr-only">Output Area: the figures the ladder produces</caption>
+      <thead>
+        <tr><th scope="colgroup" colspan="2">Output Area</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Last Price</th>
+          <td class="cell-figure" id="out-last-price">641.51</td>
+        </tr>
+        <tr>
+          <th scope="row">Target Price</th>
+          <td class="cell-figure" id="out-target-price">1060.00</td>
+        </tr>
+        <tr>
+          <th scope="row">Bad Price</th>
+          <td class="cell-figure" id="out-bad-price">110.00</td>
+        </tr>
+        <tr>
+          <th scope="row">Rank</th>
+          <td class="cell-figure cell-rank" id="out-rank"><span class="rank-pill" data-grade="A">A</span></td>
+        </tr>
+        <tr>
+          <th scope="row">Next Rank Price</th>
+          <td class="cell-figure" id="out-next-rank-price">0~361.47</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table class="sheet">
+      <caption class="sr-only">Input Area: the assumptions the ladder is run from</caption>
+      <thead>
+        <tr><th scope="colgroup" colspan="2">Input Area</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Target EPS</th>
+          <td class="cell-input">
+            <input class="sheet-input" id="in-target-eps" type="text" inputmode="decimal"
+                   value="53.00" autocomplete="off" spellcheck="false" aria-label="Target EPS">
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">Target PE</th>
+          <td class="cell-input">
+            <input class="sheet-input" id="in-target-pe" type="text" inputmode="decimal"
+                   value="20" autocomplete="off" spellcheck="false" aria-label="Target PE">
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">Bad EPS</th>
+          <td class="cell-input">
+            <input class="sheet-input" id="in-bad-eps" type="text" inputmode="decimal"
+                   value="11" autocomplete="off" spellcheck="false" aria-label="Bad EPS">
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">Bad PE</th>
+          <td class="cell-input">
+            <input class="sheet-input" id="in-bad-pe" type="text" inputmode="decimal"
+                   value="10" autocomplete="off" spellcheck="false" aria-label="Bad PE">
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">Win Prob</th>
+          <td class="cell-input">
+            <input class="sheet-input" id="in-win-prob" type="text" inputmode="decimal"
+                   value="75%" autocomplete="off" spellcheck="false" aria-label="Win Prob">
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- The ladder itself: the same four assumptions run at fifteen market prices. WL, odds,
+       profit factor and Kelly f* move down the rungs and the grade steps E → D → C as the price
+       falls, which is the whole question the sheet answers. The figures are the sheet's fixed
+       worked example for now — one row per rung, each cell its own <td> so the script that
+       replaces them has somewhere to write. -->
+  <section class="panel" aria-labelledby="ladder-title">
+    <div class="panel-head">
+      <h2 class="panel-title" id="ladder-title">Price ladder</h2>
+      <p class="panel-hint" id="ladder-hint">Fifteen market prices, from 609.43 down to 297.21</p>
+    </div>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Sensitivity ladder">
+      <table class="ladder">
+        <caption class="sr-only">
+          The same assumptions at fifteen market prices: win-loss ratio, odds, profit factor,
+          Kelly f* and the grade each price earns.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Market Price</th>
+            <th scope="col">WL</th>
+            <th scope="col">Odds</th>
+            <th scope="col">Profit Factor</th>
+            <th scope="col">Kelly f*</th>
+            <th scope="col" class="cell-rank">Rank</th>
+          </tr>
+        </thead>
+        <tbody id="ladder-body">
+          <tr>
+            <td class="cell-price">609.43</td><td>0.90</td><td>300%</td><td>2.71</td><td>47.3%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="E">E</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">578.96</td><td>1.03</td><td>300%</td><td>3.08</td><td>50.6%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="E">E</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">550.01</td><td>1.16</td><td>300%</td><td>3.48</td><td>53.4%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="E">E</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">522.51</td><td>1.30</td><td>300%</td><td>3.91</td><td>55.8%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="E">E</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">496.39</td><td>1.46</td><td>300%</td><td>4.38</td><td>57.9%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="E">E</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">471.57</td><td>1.63</td><td>300%</td><td>4.88</td><td>59.6%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="E">E</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">447.99</td><td>1.81</td><td>300%</td><td>5.43</td><td>61.2%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="D">D</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">425.59</td><td>2.01</td><td>300%</td><td>6.03</td><td>62.6%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="D">D</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">404.31</td><td>2.23</td><td>300%</td><td>6.68</td><td>63.8%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="D">D</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">384.10</td><td>2.47</td><td>300%</td><td>7.40</td><td>64.9%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="D">D</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">364.89</td><td>2.73</td><td>300%</td><td>8.18</td><td>65.8%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="D">D</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">346.65</td><td>3.01</td><td>300%</td><td>9.04</td><td>66.7%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="C">C</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">329.31</td><td>3.33</td><td>300%</td><td>10.00</td><td>67.5%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="C">C</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">312.85</td><td>3.68</td><td>300%</td><td>11.05</td><td>68.2%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="C">C</span></td>
+          </tr>
+          <tr>
+            <td class="cell-price">297.21</td><td>4.07</td><td>300%</td><td>12.22</td><td>68.9%</td>
+            <td class="cell-rank"><span class="rank-pill" data-grade="C">C</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+/**
+ * ---------------------------------------------------------------------------
+ * Data contract
+ *   GET  https://api.kidsfunbank.ca/getuser  -> { user_name, ... } for "Welcome, <user>"
+ *   POST https://api.kidsfunbank.ca/logout   -> clears the session_id cookie
+ * The ladder's figures are the sheet's fixed worked example for now. The page arrives
+ * from viewcompany.html carrying the company it belongs to — ?company_name=<name>, or
+ * ?symbol=<symbol> when that file was opened by symbol — and the script uses it only to
+ * name the breadcrumb ("Back to Tencent") and to send it back to that company's file. The
+ * read that would fill #out-last-price / #in-target-eps and the fifteen rungs from the
+ * company's own record is the next piece of work: every cell it needs already carries an
+ * id, and every rank cell already holds a .rank-pill with data-grade, so that script has
+ * somewhere to write and a colour rule waiting for whatever grade it finds.
+ * The session is the HttpOnly session_id cookie the API set at sign-in: /getuser only
+ * answers with it when the request carries credentials: 'include'.
+ * ---------------------------------------------------------------------------
+ */
+const API_BASE = 'https://api.kidsfunbank.ca';
+const ENDPOINTS = {
+  user: '/getuser',
+  logout: '/logout'
+};
+const REQUEST_TIMEOUT_MS = 10000;
+const EMPTY = '\u2014';
+
+/** Page shown when the API says the session is missing or expired. */
+const SIGNED_OUT_PAGE = 'login.html';
+
+/** The company file this sheet is opened from, and where the breadcrumb goes back to. */
+const COMPANY_PAGE = 'viewcompany.html';
+
+/**
+ * The spellings a company may arrive under, in the order they are read: the key
+ * viewcompany.html's own buttons travel on first, then the two its URL takes.
+ */
+const COMPANY_KEYS = ['company_name', 'name', 'symbol'];
+
+/**
+ * Input: raw JSON payload from /getuser.
+ * Output: the user name as a trimmed string ('' when unavailable).
+ * Action: handles plain strings plus {user_name} / {userName} / {username} / {user} /
+ *         {name} / {data: ...} shapes, in that priority order.
+ * Role: fills the "Welcome, <user>" line; the caller owns the placeholder text.
+ */
+function toUsername(payload) {
+  if (typeof payload === 'string') return payload.trim();
+  if (!payload || typeof payload !== 'object') return '';
+
+  const candidates = [
+    payload.user_name,
+    payload.userName,
+    payload.username,
+    payload.user,
+    payload.name,
+    payload.data
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    if (candidate && typeof candidate === 'object') {
+      const nested = toUsername(candidate);
+      if (nested) return nested;
+    }
+  }
+  return '';
+}
+
+/**
+ * Input: an API path such as "/getuser".
+ * Output: the parsed JSON body.
+ * Action: GETs API_BASE + path with credentials: 'include' — the session is the HttpOnly
+ *         session_id cookie, which a cross-origin request only carries when credentials are
+ *         included — without caching, aborting after REQUEST_TIMEOUT_MS, and throws an Error
+ *         carrying .status on any non-2xx.
+ * Role: the one network helper on the page (the welcome line and the session gate).
+ */
+async function fetchJson(path) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(API_BASE + path, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include',
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      const error = new Error('HTTP ' + response.status);
+      error.status = response.status;
+      throw error;
+    }
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Input: an error thrown by fetchJson().
+ * Output: true when the API refused the request for lack of a session (401/403).
+ * Action: reads the .status fetchJson() attaches to its errors.
+ * Role: separates "signed out" (back to login.html) from "API unreachable" (keep the page,
+ *       leave the welcome line as a placeholder).
+ */
+function isSignedOut(error) {
+  return Boolean(error) && (error.status === 401 || error.status === 403);
+}
+
+/**
+ * Input: none.
+ * Output: none (it navigates).
+ * Action: replaces the page with login.html.
+ * Role: the single exit for an absent or expired session, called instead of showing a
+ *       company's sensitivity sheet to nobody.
+ */
+function leaveForSignIn() {
+  window.location.replace(SIGNED_OUT_PAGE);
+}
+
+/**
+ * Input: none.
+ * Output: none.
+ * Action: GETs /getuser and writes its user_name into the welcome line as
+ *         "Welcome, <user>"; sends the visitor back to login.html when the API answers
+ *         401/403 (no session), and shows an em-dash placeholder with an explanatory
+ *         tooltip when the API cannot be reached at all.
+ * Role: personalizes the top bar and doubles as the session check for this page.
+ */
+async function loadUser() {
+  const name = document.getElementById('username');
+  if (!name) return;
+
+  try {
+    const user = toUsername(await fetchJson(ENDPOINTS.user));
+    name.textContent = user || EMPTY;
+    name.dataset.state = user ? 'ready' : 'empty';
+  } catch (error) {
+    if (isSignedOut(error)) {
+      leaveForSignIn();
+      return;
+    }
+
+    name.textContent = EMPTY;
+    name.dataset.state = 'offline';
+    name.title = 'Could not reach ' + API_BASE + ENDPOINTS.user;
+  }
+}
+
+/**
+ * Input: none (bound to the #signout-button click).
+ * Output: none (it navigates).
+ * Action: POSTs /logout with credentials: 'include' so the API can expire the HttpOnly
+ *         session_id cookie (JS cannot delete it itself), shows a busy label meanwhile, then
+ *         navigates to login.html whatever the response was.
+ * Role: the way out of the page, since the cookie is invisible to JS.
+ */
+async function signOut() {
+  const button = document.getElementById('signout-button');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Signing out\u2026';
+  }
+
+  try {
+    await fetch(API_BASE + ENDPOINTS.logout, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'include'
+    });
+  } catch (error) {
+    // Offline or blocked: the visitor still leaves, and the next request will simply
+    // come back 401 and route through leaveForSignIn().
+  } finally {
+    window.location.replace(SIGNED_OUT_PAGE);
+  }
+}
+
+/**
+ * Input: the page's query string (window.location.search).
+ * Output: { key, value } for the company this sheet belongs to — key being the spelling it
+ *         arrived on — or null when the URL names none.
+ * Action: reads COMPANY_KEYS in order, takes the first value that is not blank and trims it.
+ *         (URLSearchParams has already decoded it.)
+ * Role: the one place the page learns which company it is a sensitivity sheet for; the
+ *       ladder's figures will be read for this same company.
+ */
+function companyFromUrl(search) {
+  const params = new URLSearchParams(search);
+  for (const key of COMPANY_KEYS) {
+    const value = (params.get(key) || '').trim();
+    if (value) return { key: key, value: value };
+  }
+  return null;
+}
+
+/**
+ * Input: the company from the URL ({ key, value }) or null.
+ * Output: none.
+ * Action: points #back-link at that company's file — ?symbol=… when the page was opened by
+ *         symbol, ?name=… otherwise, the two spellings viewcompany.html resolves — names it
+ *         in the link ("← Back to Tencent") and in the page's own title; with no company on
+ *         the URL it falls back to the dashboard.
+ * Role: the way back to the record this sheet was opened from, so a press never leaves the
+ *       analyst on a page with no door out (a bare sensitivity.html stays reachable).
+ */
+function syncBackLink(company) {
+  const link = document.getElementById('back-link');
+  if (!link) return;
+
+  if (!company) {
+    link.href = 'home.html';
+    link.textContent = '\u2190 Back to dashboard';
+    return;
+  }
+
+  const key = company.key === 'symbol' ? 'symbol' : 'name';
+  link.href = COMPANY_PAGE + '?' + key + '=' + encodeURIComponent(company.value);
+  link.textContent = '\u2190 Back to ' + company.value;
+
+  const title = document.getElementById('page-title');
+  if (title) title.textContent = 'Sensitivity \u2014 ' + company.value;
+  document.title = 'Sensitivity \u2014 ' + company.value + ' \u00b7 RR research';
+}
+
+/**
+ * Input: none (the script sits at the end of <body>, so the DOM already exists).
+ * Output: none.
+ * Action: names the company on the breadcrumb, starts the /getuser read (the session gate)
+ *         and wires the sign-out button to signOut().
+ * Role: single entry point for the page.
+ */
+function init() {
+  syncBackLink(companyFromUrl(window.location.search));
+  loadUser();
+
+  const signOutButton = document.getElementById('signout-button');
+  if (signOutButton) signOutButton.addEventListener('click', signOut);
+}
+
+init();
+</script>
+</body>
+</html>
