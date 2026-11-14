@@ -305,10 +305,15 @@
     color: var(--pink-ink);
   }
 
-  /* ---------- Eight tiles: four scores, symbol, price, WL and Kelly f* ----------
+  /* ---------- Eleven tiles: the four scores; symbol, current price, WL and Kelly
+     f*; target price, bad price and the win probability ----------
      A 4-column grid, so the four scores (moat / cyclical / growth / antifragile)
-     sit on the first row and the symbol + the three price lines on the second,
-     exactly like the paper sketch. */
+     sit on the first row and the symbol + the current price + the two ratios on the
+     second, exactly like the paper sketch. The third row carries the three figures
+     an offer is priced from: what the company is worth if the thesis holds
+     (target_price), what it is worth if it breaks (bad_price) and the chance the
+     thesis holds (winning_probability). It holds three boxes, so the grid leaves
+     that row's fourth slot empty rather than inventing a fourth number. */
   .tiles {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -726,9 +731,11 @@
     <p class="company-note" id="company-note" role="status" aria-live="polite">Reading the company file&hellip;</p>
   </section>
 
-  <!-- Eight tiles: four scores on the first row, symbol + price + WL + Kelly f*
-       on the second. Values are written by renderTiles(). -->
-  <section class="tiles" aria-label="Latest scores and prices">
+  <!-- Eleven tiles: four scores on the first row, symbol + current price + WL + Kelly
+       f* on the second, and target price + bad price + win probability on the third.
+       Values are written by renderTiles(); the labels are title case here and the
+       stylesheet uppercases them. -->
+  <section class="tiles" aria-label="Latest scores, prices and win probability">
     <div class="tile">
       <span class="tile-label">Moat score</span>
       <span class="tile-value" id="tile-moat" data-state="loading">&hellip;</span>
@@ -760,6 +767,20 @@
     <div class="tile">
       <span class="tile-label">Kelly f*</span>
       <span class="tile-value" id="tile-kelly-f" data-state="loading">&hellip;</span>
+    </div>
+    <!-- The three figures an offer is priced from: target_price, bad_price and the
+         winning probability, read from the same record as the tiles above. -->
+    <div class="tile">
+      <span class="tile-label">Target price</span>
+      <span class="tile-value" id="tile-target-price" data-state="loading">&hellip;</span>
+    </div>
+    <div class="tile">
+      <span class="tile-label">Bad price</span>
+      <span class="tile-value" id="tile-bad-price" data-state="loading">&hellip;</span>
+    </div>
+    <div class="tile">
+      <span class="tile-label">Win prob</span>
+      <span class="tile-value" id="tile-win-prob" data-state="loading">&hellip;</span>
     </div>
   </section>
 
@@ -818,8 +839,11 @@
  * the only one this page uses. The list keeps /companies, and the document route
  * keeps /companies/{path}.) Its
  * answer is two objects: `numerical_values` (symbol, company_name, the four
- * scores, the three prices, rank, date, current_price, price_date, wl_base,
- * kelly_f) and `analysis_files`, a list with one item per upload.
+ * scores, the three prices — current_price, target_price, bad_price — rank, date,
+ * price_date, wl_base, kelly_f and winning_probability) and `analysis_files`, a list
+ * with one item per upload. `winning_probability` is stored as a fraction 0..1 (0.65
+ * is sixty-five percent), which is why the Win prob tile reads it through
+ * formatProbability() rather than a plain text reader.
  *
  * An analysis_files item either names its own section - {field: "moat_analysis",
  * path: "/app/...html", date: "2026-10-28"} - or maps sections to their document
@@ -901,11 +925,21 @@ const SECTIONS = [
 ];
 
 /**
- * The eight tiles, in render order (the four scores on the first row, symbol +
- * price, WL and Kelly f* on the second).
+ * The spellings a win probability may arrive under: `winning_probability` is the one the
+ * API stores (a fraction 0..1 — 0.65 is sixty-five percent), the rest are the short
+ * spellings a response may use instead. home.html reads its Win prob column through this
+ * same list, so one record's probability reads the same on both pages.
+ */
+const PROBABILITY_KEYS = ['winning_probability', 'winningProbability', 'win_prob', 'winProb', 'probability'];
+
+/**
+ * The eleven tiles, in render order (the four scores on the first row, symbol +
+ * current price, WL and Kelly f* on the second, target price, bad price and the win
+ * probability on the third).
  * "keys" lists accepted payload spellings so a snake_case or camelCase record
  * both lands in the right box, and "kind" picks the formatter: score = whole
- * marks, money = two decimals, ratio = two decimals, text = as stored.
+ * marks, money = two decimals, ratio = two decimals, percent = a 0..1 fraction as
+ * a percentage, text = as stored.
  */
 const TILES = [
   { id: 'tile-moat', label: 'Moat score', keys: ['moat_score', 'moat', 'moatScore'], kind: 'score' },
@@ -915,7 +949,10 @@ const TILES = [
   { id: 'tile-symbol', label: 'Symbol', keys: ['symbol', 'ticker', 'code'], kind: 'text' },
   { id: 'tile-price', label: 'Current price', keys: ['current_price', 'currentPrice', 'price'], kind: 'money' },
   { id: 'tile-wl-base', label: 'WL', keys: ['wl_base', 'wl_ratio_base', 'wlRatioBase'], kind: 'ratio' },
-  { id: 'tile-kelly-f', label: 'Kelly f*', keys: ['kelly_f', 'kellyF', 'kelly'], kind: 'ratio' }
+  { id: 'tile-kelly-f', label: 'Kelly f*', keys: ['kelly_f', 'kellyF', 'kelly'], kind: 'ratio' },
+  { id: 'tile-target-price', label: 'Target price', keys: ['target_price', 'targetPrice', 'target'], kind: 'money' },
+  { id: 'tile-bad-price', label: 'Bad price', keys: ['bad_price', 'badPrice'], kind: 'money' },
+  { id: 'tile-win-prob', label: 'Win prob', keys: PROBABILITY_KEYS, kind: 'percent' }
 ];
 
 /** The two wrappers a one-company record may put its values in. */
@@ -1012,11 +1049,12 @@ function formatScore(value) {
 }
 
 /**
- * Input: a price as stored (current_price is a float from the quote API).
- * Output: the price with two decimals ("348.91"), or the em-dash placeholder.
+ * Input: a price as stored (current_price, target_price and bad_price are floats from
+ *        the quote API / the analyst's own figures, e.g. 386.6000061035156 or 601).
+ * Output: the price with two decimals ("386.60", "601.00"), or the em-dash placeholder.
  * Action: formats through toFixed(2); no currency symbol, because the record
  *         does not say which one applies.
- * Role: renders the Current price tile.
+ * Role: renders the Current price, Target price and Bad price tiles.
  */
 function formatMoney(value) {
   const number = toNumber(value);
@@ -1032,6 +1070,26 @@ function formatMoney(value) {
 function formatRatio(value) {
   const number = toNumber(value);
   return number === null ? EMPTY : number.toFixed(2);
+}
+
+/**
+ * Input: a win probability as a company record carries it — `winning_probability`, a
+ *        fraction 0..1 (0.65 is sixty-five percent), or null / "" / anything non-numeric.
+ * Output: the figure as a percentage ("65%", "72.5%", "0%"), or the em-dash placeholder.
+ * Action: reads the value through toNumber, treats a figure inside 0..1 as the fraction the
+ *         API stores and multiplies it by 100, leaves a figure already above 1 as the
+ *         percentage it must be, and prints one decimal at most; anything non-numeric is EMPTY.
+ * Role: renders the Win prob tile — the same 0..1 -> percentage reading home.html's Win prob
+ *       column and update-score.html's Winning probability box give, so one record's
+ *       probability looks the same wherever it is shown.
+ */
+function formatProbability(value) {
+  const number = toNumber(value);
+  if (number === null) return EMPTY;
+
+  const percent = number > 1 ? number : number * 100;
+  const rounded = Math.round(percent * 10) / 10;
+  return String(rounded) + '%';
 }
 
 /**
@@ -1599,8 +1657,10 @@ function handleActionClick(event) {
  * Output: none.
  * Action: fills each tile in TILES from the record, formats its value by kind,
  *         and marks the tile empty when the field is missing.
- * Role: the eight boxes - moat / cyclical / growth / antifragile score, symbol,
- *       price, WL and Kelly f* - i.e. the latest stored figures for this company.
+ * Role: the eleven boxes - moat / cyclical / growth / antifragile score, symbol,
+ *       current price, WL, Kelly f*, target price, bad price and the win probability -
+ *       i.e. the latest stored figures for this company and the three numbers an offer
+ *       is priced from.
  */
 function renderTiles(record) {
   for (const tile of TILES) {
@@ -1612,6 +1672,7 @@ function renderTiles(record) {
     if (tile.kind === 'score') text = formatScore(raw);
     else if (tile.kind === 'money') text = formatMoney(raw);
     else if (tile.kind === 'ratio') text = formatRatio(raw);
+    else if (tile.kind === 'percent') text = formatProbability(raw);
     else text = asText(raw);
 
     node.textContent = text;
@@ -1934,7 +1995,7 @@ function renderReports(record) {
  * Input: one company record.
  * Output: none.
  * Action: names the page after the company, points the two update buttons at it, writes the
- *         note, the eight tiles and the thirteen report tables, hides the picker and retitles
+ *         note, the eleven tiles and the thirteen report tables, hides the picker and retitles
  *         the tab.
  * Role: the single draw for a loaded company.
  */
@@ -1956,7 +2017,7 @@ function renderRecord(record) {
 /**
  * Input: the sentence to show under the heading.
  * Output: none.
- * Action: resets the heading, greys the two update buttons, resets the eight tiles and the
+ * Action: resets the heading, greys the two update buttons, resets the eleven tiles and the
  *         report area to their placeholders and writes the sentence into the note.
  * Role: the state behind "no company asked for yet", "no such company" and a
  *       failed read - the page never shows a half-filled file.
