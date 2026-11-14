@@ -274,6 +274,15 @@
 
   .company-note:empty { display: none; }
 
+  /* The sentence a delete leaves on the note line (renderNote()'s second argument). It is a
+     flex item of its own, so it lands to the right of the rank pill and the two stamps and
+     reads in the note's own muted ink - the figures stay the first thing on the line. A long
+     file name wraps inside the note instead of widening the page. */
+  .company-note .note-message {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
   .rank-pill {
     display: inline-flex;
     justify-content: center;
@@ -704,7 +713,10 @@
          Update score    -> update-score.html?company_name=<name>
          Analytics       -> nowhere yet: its page is empty, so it is a disabled button.
        setActions() points the two links at the company on screen and keeps all three grey
-       while no company is open (the state the page loads in). -->
+       while no company is open (the state the page loads in).
+       Under that row sits the note line: renderNote() draws the "Rank A" pill and the two date
+       stamps there, and a delete's sentence joins them to their right (renderNote's second
+       argument) rather than replacing the grade and the dates. -->
   <section class="identity" aria-labelledby="company-name">
     <div class="identity-row">
       <h1 class="company-name" id="company-name" data-state="loading">Company view</h1>
@@ -1577,10 +1589,13 @@ function leaveForSignIn() {
 /**
  * Input: the text for the line under the company name.
  * Output: none.
- * Action: writes it into #company-note, which is the page's aria-live status.
+ * Action: writes it into #company-note, which is the page's aria-live status, and forgets the
+ *         record the note last drew (noteRecord), because from now on the line holds this
+ *         sentence instead of a pill and two stamps.
  * Role: one place for "reading…", the failure sentences and the picker prompt.
  */
 function setNote(text) {
+  noteRecord = null;
   const note = document.getElementById('company-note');
   if (note) note.textContent = text;
 }
@@ -1681,7 +1696,15 @@ function renderTiles(record) {
 }
 
 /**
- * Input: one company record.
+ * The record #company-note's figures were last drawn from, or null while the line holds a
+ * sentence instead (setNote() nulls it). setNoteWithFigures() rebuilds the rank pill and the
+ * two stamps from it, so a delete can speak without blanking the company's grade on screen.
+ */
+let noteRecord = null;
+
+/**
+ * Input: one company record and, optionally, a sentence to trail the figures on the line (a
+ *        delete's outcome).
  * Output: none.
  * Action: clears #company-note and writes a "Rank A" pill followed by the dates
  *         the scores and the price were stored, e.g.
@@ -1689,14 +1712,18 @@ function renderTiles(record) {
  *         arrives as 22:00Z and formatStamp() reads it in the viewer's own zone, so the
  *         hour on screen is 17:00 in November and 18:00 in July for an Eastern reader. The
  *         pill also wears its grade as data-grade, so the page's one colour says A-D green,
- *         E amber, F pink.
+ *         E amber, F pink. A message, when given, is appended after the stamps as a
+ *         .note-message span, so "Deleted c10.html - the file is gone from the server." reads
+ *         to the right of the grade and the dates instead of replacing them. The record is
+ *         kept as noteRecord, which is what setNoteWithFigures() redraws from.
  * Role: says how current the numbers above the tables are, without inventing
  *       anything: a company with no stored scores says so.
  */
-function renderNote(record) {
+function renderNote(record, message) {
   const note = document.getElementById('company-note');
   if (!note) return;
   note.textContent = '';
+  noteRecord = record || null;
 
   const rank = asText(pick(record, ['rank', 'grade'], "numerical_value"));
   if (rank !== EMPTY) {
@@ -1717,7 +1744,31 @@ function renderNote(record) {
   if (priced !== EMPTY) bits.push('Price ' + priced);
   if (bits.length) note.append(bits.join(' \u00b7 '));
 
+  if (message) {
+    const text = document.createElement('span');
+    text.className = 'note-message';
+    text.textContent = message;
+    note.appendChild(text);
+  }
+
   if (!note.childNodes.length) note.textContent = 'No stored scores for this company yet.';
+}
+
+/**
+ * Input: the sentence to show beside the figures on the note line (a delete's outcome).
+ * Output: none.
+ * Action: redraws the note from noteRecord - the rank pill and the two stamps - with that
+ *         sentence trailing them; with no record to redraw from (the page is showing a
+ *         picker prompt or a failure sentence) it falls back to setNote().
+ * Role: how a delete says what it did without costing the analyst the company's grade or how
+ *       current its numbers are.
+ */
+function setNoteWithFigures(message) {
+  if (!noteRecord) {
+    setNote(message);
+    return;
+  }
+  renderNote(noteRecord, message);
 }
 
 /**
@@ -1904,8 +1955,10 @@ function openDeleteConfirm() {
  *         field_name is the section's internal field key (e.g. "industry_map", the analysis
  *         column the API files the document under, not the display label) — while the note
  *         names the base name — and on success re-reads the company so the deleted row is
- *         gone. A 401/403 goes to login.html; any other failure is explained in the note and
- *         the button is re-enabled.
+ *         gone, then says so through setNoteWithFigures(): the sentence trails the rank pill
+ *         and the two stamps instead of replacing them, so the grade and the dates survive.
+ *         A 401/403 goes to login.html; any other failure is explained the same way — beside
+ *         the figures — and the button is re-enabled.
  * Role: the page's only destructive write — what a mini table's red Delete does.
  */
 async function handleDeleteAnalysis(symbol, filePath, fieldName, button) {
@@ -1937,9 +1990,10 @@ async function handleDeleteAnalysis(symbol, filePath, fieldName, button) {
       throw error;
     }
 
-    // Accepted: re-read the company so the deleted document's row disappears.
+    // Accepted: re-read the company so the deleted document's row disappears, then name the
+    // file beside the figures - the rank pill and the two stamps stay on the line.
     await openBySymbol(symbol);
-    setNote('Deleted ' + label + ' \u2014 the file is gone from the server.');
+    setNoteWithFigures('Deleted ' + label + ' \u2014 the file is gone from the server.');
   } catch (error) {
     if (isSignedOut(error)) {
       leaveForSignIn();
@@ -1948,7 +2002,7 @@ async function handleDeleteAnalysis(symbol, filePath, fieldName, button) {
 
     button.disabled = false;
     button.textContent = original;
-    setNote('Could not delete ' + label + ' \u2014 ' + describeError(error));
+    setNoteWithFigures('Could not delete ' + label + ' \u2014 ' + describeError(error));
   }
 }
 
