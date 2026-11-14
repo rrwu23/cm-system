@@ -1023,7 +1023,7 @@ function criticalOf(record) {
 
   const nextRank = asText(pick(record, NEXT_RANK_KEYS));
   if (gradeOf(rank) === 'F' || nextRank.toUpperCase() === rank.toUpperCase()) return MAX_RANK;
-
+  console.log(nextRank)
   const current = toNumber(pick(record, CURRENT_PRICE_KEYS));
   const critical = toNumber(pick(record, NEXT_CRIT_KEYS));
   if (current === null || critical === null || current === 0) return undefined;
