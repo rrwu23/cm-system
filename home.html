@@ -397,10 +397,14 @@
      the floor by ~90px: this size and a tight 4px padding give that back. The target-price column
      (2026-11-07, +69px at the floor) was paid for the same way, a little from every column at
      once — 2px off each side padding, 1px off the arrow's reserved space, 1px off its gap and a
-     hair off the heads' tracking. The critical column (2026-11-07) is one head ("Critical") and
-     one figure ("-13.5%", "max rank") further: there is nothing left to shave, so the floor grew
-     with it, from ~823px to ~897px — measured, the table still fits the panel whole from 950px
-     up, and below that the wrapper scrolls under the sticky name column as it always has. */
+     hair off the heads' tracking. The critical column (2026-11-07) is one head and one figure
+     ("-13.5%", "max rank") further: there is nothing left to shave, so the floor grew with it,
+     from ~823px to ~898px — measured, the table still fits the panel whole from a 940px
+     viewport up, and below that the wrapper scrolls under the sticky name column as it always
+     has. That head was renamed "Next rank%" later the same day, which is 24px of head wider
+     ("NEXT RANK%" against "CRITICAL"): the floor is now ~922px and the fit would have started
+     at 1020px, except the heads give up 2px of their arrow gap below 1060px (see the step under
+     the name cap), which puts it back to ~1005px. */
   .data-table {
     width: 100%;
     min-width: 0;
@@ -499,7 +503,8 @@
   /* The arrow shows on the sorted column only, but its 7px always holds, so turning the
      sort on or off never shifts the label. (7px and a 3px gap rather than 9 and 6: thirteen heads
      carry that space each, and the win-probability and target-price columns made every pixel
-     count.) */
+     count. Below a laptop panel the gap gives up 2px of that itself — see the 1060px step under
+     the name cap, added when the "Next rank%" head arrived.) */
   .sort-mark { flex: none; width: 7px; font-size: 7px; line-height: 1; }
 
   /* The sorted head: a deeper tint than its neighbours, blue ink and a 2px rule, so the column
@@ -541,6 +546,14 @@
   }
   @media (max-width: 1024px) {
     .data-table .name-fit { max-width: 150px; }
+  }
+  /* The arrow gives up part of its gap below a laptop panel: "Next rank%" is ~25px wider than
+     the "Critical" it replaced (2026-11-07), and 26px — 2px off each of the thirteen heads — is
+     exactly what keeps the table fitting the panel whole at 1024px instead of scrolling. Wide
+     screens keep the 3px gap, where the leftover pixels are shared out and the difference could
+     not show anyway. */
+  @media (max-width: 1060px) {
+    .data-table .sort-btn { gap: 1px; }
   }
   @media (max-width: 960px) {
     .data-table th,
@@ -741,8 +754,8 @@
       <table class="data-table">
         <caption class="sr-only">
           Companies with symbol, moat, cyclical, antifragile, growth, WL,
-          win probability, Kelly f*, last price, target price, critical and rank. Every row opens
-          that company's file.
+          win probability, Kelly f*, last price, target price, next rank percent and rank. Every
+          row opens that company's file.
         </caption>
         <!-- Every column name is a button: a click orders the table by that column, in the
              direction the column is normally read — a name or symbol A→Z (0→9 inside a
@@ -785,8 +798,12 @@
             <th scope="col" aria-sort="none">
               <button type="button" class="sort-btn">Target<span class="sort-mark" aria-hidden="true"></span></button>
             </th>
+            <!-- "Next rank%" rather than "Critical": the cell holds a percentage, so the head names
+                 what the figure is a percentage of — how far today's price still is from the next
+                 grade (criticalOf() / formatCritical()). The stylesheet paints every head in caps,
+                 so it reads as NEXT RANK% on screen. -->
             <th scope="col" aria-sort="none">
-              <button type="button" class="sort-btn">Critical<span class="sort-mark" aria-hidden="true"></span></button>
+              <button type="button" class="sort-btn">Next rank%<span class="sort-mark" aria-hidden="true"></span></button>
             </th>
             <th scope="col" aria-sort="none">
               <button type="button" class="sort-btn">Rank<span class="sort-mark" aria-hidden="true"></span></button>
@@ -836,7 +853,7 @@ const ENDPOINTS = {
 const REQUEST_TIMEOUT_MS = 10000;
 const EMPTY = '\u2014';
 
-/** What the Critical column says about a company that has no grade left to reach. */
+/** What the Next rank% column says about a company that has no grade left to reach. */
 const MAX_RANK = 'max rank';
 /** Rows the dropdown will ever draw at once (it scrolls instead of growing). */
 const SUGGEST_LIMIT = 8;
@@ -861,7 +878,7 @@ const SYMBOL_KEYS = ['symbol', 'ticker', 'code'];
 const PROBABILITY_KEYS = ['winning_probability', 'winningProbability', 'win_prob', 'winProb', 'probability'];
 
 /**
- * The spellings a company's grade may arrive under: the Rank column draws one and the Critical
+ * The spellings a company's grade may arrive under: the Rank column draws one and the Next rank%
  * column compares it with the grade the next threshold would buy, so both read this one list.
  */
 const RANK_KEYS = ['rank'];
@@ -894,7 +911,7 @@ const CURRENT_PRICE_KEYS = ['current_price', 'currentPrice', 'latest_price', 'la
  * ranking names and grades (a best grade is an early letter, so 'asc' puts it on
  * top) and biggest first for the figures.
  *
- * One column is not a field of the record at all: Critical is arithmetic over four of
+ * One column is not a field of the record at all: Next rank% is arithmetic over four of
  * them, so "read" names the function that works the value out (criticalOf()) and "format"
  * names the function that turns it into the text drawn (formatCritical()). Where they are
  * absent the value is the first of "keys" that the record carries, printed by asText() —
@@ -1014,8 +1031,8 @@ function gradeOf(value) {
  *         1 - next_crit / current_price. A grade of F, or a next_rank that is the grade already
  *         held, is the top of the ladder (MAX_RANK); a missing grade, a missing price or a zero
  *         price leaves the cell blank instead of drawing NaN or Infinity.
- * Role: the Critical column's arithmetic — the one place the table turns a company's grade, the
- *       next grade's threshold price and today's price into a single figure.
+ * Role: the Next rank% column's arithmetic — the one place the table turns a company's grade,
+ *       the next grade's threshold price and today's price into a single figure.
  */
 function criticalOf(record) {
   const rank = asText(pick(record, RANK_KEYS));
@@ -1023,11 +1040,10 @@ function criticalOf(record) {
 
   const nextRank = asText(pick(record, NEXT_RANK_KEYS));
   if (gradeOf(rank) === 'F' || nextRank.toUpperCase() === rank.toUpperCase()) return MAX_RANK;
-  console.log(nextRank, asText(pick(record, ["symbol", "company_symbol"])))
+
   const current = toNumber(pick(record, CURRENT_PRICE_KEYS));
   const critical = toNumber(pick(record, NEXT_CRIT_KEYS));
   if (current === null || critical === null || current === 0) return undefined;
-  console.log(critical, record.symbol)
   return 1 - critical / current;
 }
 
@@ -1074,7 +1090,7 @@ function formatProbability(value) {
  *         words "max rank" as they stand, or the em-dash placeholder.
  * Action: passes MAX_RANK straight through, and multiplies any other finite figure by 100 before
  *         rounding; anything unreadable becomes EMPTY.
- * Role: prints the Critical column. Unlike formatProbability() the figure is always a fraction —
+ * Role: prints the Next rank% column. Unlike formatProbability() the figure is always a fraction —
  *       0.125 is 12.5% and can never read as "125%" — because this value is arithmetic done on
  *       this page, not a stored probability that may already have been typed as a percentage.
  */
@@ -1268,7 +1284,7 @@ function rowHref(record) {
  *         styles rank as a pill, sends numbers through tabular figures, and — when the
  *         record has a symbol — puts a link to the company's file in the name cell and marks
  *         the row clickable (`tr.row-linked`, handled by handleRowClick()). A column that
- *         carries a `read` function (Critical) works its own value out of the record instead of
+ *         carries a `read` function (Next rank%) works its own value out of the record instead of
  *         reading one field. The rows are drawn in sortState's order when a header has been
  *         pressed, and in the API's order until then.
  * Role: draws the main analysis table, makes every row a door to viewcompany.html?symbol=…,
@@ -1377,7 +1393,7 @@ function fitCompanyNames() {
  * Input: the table's records, a column index and 'asc' or 'desc'.
  * Output: a new array holding the same records in that order.
  * Action: reads each record's value for that column with pick() — or with the column's own `read`
- *         function when it has one (Critical) — and a 'number' column compares numbers (a numeric
+ *         function when it has one (Next rank%) — and a 'number' column compares numbers (a numeric
  *         string is read as a number) while any other column compares text through TEXT_ORDER. A
  *         blank cell sinks to the bottom whichever way the sort runs, and so does a figure that
  *         cannot be read (a "max rank", which is no figure at all), while two equal values keep
