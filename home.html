@@ -391,14 +391,16 @@
 
   /* The columns size to what is in them and share the panel's width, so the table fits the
      panel whole — the old 1080px min-width forced a horizontal scrollbar long before the panel
-     ran out of room. Only a phone narrow enough that twelve nowrap columns cannot fit (each head
+     ran out of room. Only a phone narrow enough that thirteen nowrap columns cannot fit (each head
      is at least as wide as "Antifragile") still scrolls, which is why the .table-scroll wrapper
      stays. 14px rather than the old 15px since the win-probability column (2026-11-07) widened
      the floor by ~90px: this size and a tight 4px padding give that back. The target-price column
      (2026-11-07, +69px at the floor) was paid for the same way, a little from every column at
      once — 2px off each side padding, 1px off the arrow's reserved space, 1px off its gap and a
-     hair off the heads' tracking — so twelve columns keep a floor of ~823px: the table still
-     fits the panel whole at every width it did with eleven, and one notch lower (870px). */
+     hair off the heads' tracking. The critical column (2026-11-07) is one head ("Critical") and
+     one figure ("-13.5%", "max rank") further: there is nothing left to shave, so the floor grew
+     with it, from ~823px to ~897px — measured, the table still fits the panel whole from 950px
+     up, and below that the wrapper scrolls under the sticky name column as it always has. */
   .data-table {
     width: 100%;
     min-width: 0;
@@ -436,11 +438,11 @@
      value column comes out exactly as wide as its widest cell (the header label, "Antifragile"
      or the value, whichever is longer) and the name column is only as wide as its capped name.
      The table is as wide as the panel (width: 100%), so the pixels left over are shared out
-     among all twelve columns: each one grows by the same slice, which keeps the tinted head
+     among all thirteen columns: each one grows by the same slice, which keeps the tinted head
      running the whole way across without any single column looking stretched. */
   .data-table th { width: 1%; }
 
-  /* Only bites when the twelve columns genuinely outgrow the panel on a phone: there the company
+  /* Only bites when the thirteen columns genuinely outgrow the panel on a phone: there the company
      name column stays put while the rest scrolls. At the panel's normal width the table fits
      whole, so this rule has nothing to do. */
   @media (min-width: 901px) {
@@ -495,7 +497,7 @@
   }
 
   /* The arrow shows on the sorted column only, but its 7px always holds, so turning the
-     sort on or off never shifts the label. (7px and a 3px gap rather than 9 and 6: twelve heads
+     sort on or off never shifts the label. (7px and a 3px gap rather than 9 and 6: thirteen heads
      carry that space each, and the win-probability and target-price columns made every pixel
      count.) */
   .sort-mark { flex: none; width: 7px; font-size: 7px; line-height: 1; }
@@ -529,9 +531,9 @@
     vertical-align: bottom;
   }
 
-  /* The cap gives ground as the window narrows, because twelve columns at their own width and a
+  /* The cap gives ground as the window narrows, because thirteen columns at their own width and a
      260px name no longer fit a laptop panel. The padding step below — the head buttons included,
-     since the head's padding lives on them — holds the sideways scroll off down to the ~870px
+     since the head's padding lives on them — holds the sideways scroll off down to the ~950px
      split-screen; below that the table is genuinely wider than the panel and the .table-scroll
      wrapper takes over. */
   @media (max-width: 1200px) {
@@ -543,7 +545,7 @@
   @media (max-width: 960px) {
     .data-table th,
     .data-table td { padding: 11px 2px; }
-    /* The head's padding lives on its button (see .sort-btn), so the twelve heads — the widest
+    /* The head's padding lives on its button (see .sort-btn), so the thirteen heads — the widest
        thing in a narrow table — have to give ground with the body cells or nothing shrinks. */
     .data-table .sort-btn { padding: 11px 2px; }
   }
@@ -739,15 +741,15 @@
       <table class="data-table">
         <caption class="sr-only">
           Companies with symbol, moat, cyclical, antifragile, growth, WL,
-          win probability, Kelly f*, last price, target price and rank. Every row opens that
-          company's file.
+          win probability, Kelly f*, last price, target price, critical and rank. Every row opens
+          that company's file.
         </caption>
         <!-- Every column name is a button: a click orders the table by that column, in the
              direction the column is normally read — a name or symbol A→Z (0→9 inside a
              symbol), a score or ratio biggest first, the rank with the best grade on top —
              and a second click on the same name flips it. aria-sort carries the state (it is
              also what draws the arrow). The head is static markup, so one listener on the row
-             (handleSortClick) serves all twelve, however often the body is re-drawn. -->
+             (handleSortClick) serves all thirteen, however often the body is re-drawn. -->
         <thead>
           <tr>
             <th scope="col" aria-sort="none">
@@ -784,13 +786,16 @@
               <button type="button" class="sort-btn">Target<span class="sort-mark" aria-hidden="true"></span></button>
             </th>
             <th scope="col" aria-sort="none">
+              <button type="button" class="sort-btn">Critical<span class="sort-mark" aria-hidden="true"></span></button>
+            </th>
+            <th scope="col" aria-sort="none">
               <button type="button" class="sort-btn">Rank<span class="sort-mark" aria-hidden="true"></span></button>
             </th>
           </tr>
         </thead>
         <tbody id="companies-body">
           <tr>
-            <td class="state-cell" colspan="12">Loading companies&hellip;</td>
+            <td class="state-cell" colspan="13">Loading companies&hellip;</td>
           </tr>
         </tbody>
       </table>
@@ -830,6 +835,9 @@ const ENDPOINTS = {
 };
 const REQUEST_TIMEOUT_MS = 10000;
 const EMPTY = '\u2014';
+
+/** What the Critical column says about a company that has no grade left to reach. */
+const MAX_RANK = 'max rank';
 /** Rows the dropdown will ever draw at once (it scrolls instead of growing). */
 const SUGGEST_LIMIT = 8;
 
@@ -853,6 +861,24 @@ const SYMBOL_KEYS = ['symbol', 'ticker', 'code'];
 const PROBABILITY_KEYS = ['winning_probability', 'winningProbability', 'win_prob', 'winProb', 'probability'];
 
 /**
+ * The spellings a company's grade may arrive under: the Rank column draws one and the Critical
+ * column compares it with the grade the next threshold would buy, so both read this one list.
+ */
+const RANK_KEYS = ['rank'];
+
+/** The spellings the grade the next threshold buys may arrive under. */
+const NEXT_RANK_KEYS = ['next_rank', 'nextRank'];
+
+/**
+ * The spellings the critical price — the price at which the next grade is reached — may arrive
+ * under: `next_crit` is the one the API stores, the rest are readings a response may use instead.
+ */
+const NEXT_CRIT_KEYS = ['next_crit', 'nextCrit', 'critical_price', 'criticalPrice'];
+
+/** The spellings the last price may arrive under — the price column and the critical figure share them. */
+const CURRENT_PRICE_KEYS = ['current_price', 'currentPrice', 'latest_price', 'latestPrice', 'price'];
+
+/**
  * Column map for the analysis table, in render order. The static <thead> in the
  * markup follows the same order — update both together if a column changes.
  * "keys" lists accepted payload spellings so snake_case or camelCase responses
@@ -867,6 +893,12 @@ const PROBABILITY_KEYS = ['winning_probability', 'winningProbability', 'win_prob
  * normally read in, which is what its first header click applies: A→Z for the
  * ranking names and grades (a best grade is an early letter, so 'asc' puts it on
  * top) and biggest first for the figures.
+ *
+ * One column is not a field of the record at all: Critical is arithmetic over four of
+ * them, so "read" names the function that works the value out (criticalOf()) and "format"
+ * names the function that turns it into the text drawn (formatCritical()). Where they are
+ * absent the value is the first of "keys" that the record carries, printed by asText() —
+ * or by formatProbability() / formatFigure() when "percent" / "decimals" is set.
  */
 const COLUMNS = [
   { keys: ['company_name', 'companyName', 'name', 'company'], cellClass: 'cell-company', link: true, sort: 'text', dir: 'asc' },
@@ -878,9 +910,10 @@ const COLUMNS = [
   { keys: ['wl_ratio_base', 'wlRatioBase', 'wl_base', 'wlbase'], cellClass: 'cell-num', sort: 'number', dir: 'desc' },
   { keys: PROBABILITY_KEYS, cellClass: 'cell-num', sort: 'number', dir: 'desc', percent: true },
   { keys: ['kelly_f', 'kellyF', 'kelly'], cellClass: 'cell-num', sort: 'number', dir: 'desc', decimals: 2 },
-  { keys: ['current_price', 'currentPrice', 'latest_price', 'latestPrice', 'price'], cellClass: 'cell-num', sort: 'number', dir: 'desc', decimals: 2 },
+  { keys: CURRENT_PRICE_KEYS, cellClass: 'cell-num', sort: 'number', dir: 'desc', decimals: 2 },
   { keys: ['target_price', 'targetPrice', 'target'], cellClass: 'cell-num', sort: 'number', dir: 'desc', decimals: 2 },
-  { keys: ['rank'], cellClass: 'cell-num', pill: true, sort: 'text', dir: 'asc' }
+  { read: criticalOf, cellClass: 'cell-num', sort: 'number', dir: 'desc', format: formatCritical },
+  { keys: RANK_KEYS, cellClass: 'cell-num', pill: true, sort: 'text', dir: 'asc' }
 ];
 
 /**
@@ -969,6 +1002,36 @@ function gradeOf(value) {
 }
 
 /**
+ * Input: one company record as /companies sends it — `rank` (the grade it holds), `next_rank`
+ *        (the grade the next threshold buys), `next_crit` (that threshold's price) and
+ *        `current_price`.
+ * Output: how far today's price still is from the next grade, as a fraction of that price —
+ *         0.125 is twelve and a half percent of headroom, -0.25 is a quarter of the price below
+ *         the threshold — the words MAX_RANK when there is no grade left to reach, or undefined
+ *         when the figure cannot be worked out at all.
+ * Action: reads the four fields through pick()/toNumber(), compares the two grades
+ *         case-insensitively ('d' and 'D' are one grade, not two) and returns
+ *         1 - next_crit / current_price. A grade of F, or a next_rank that is the grade already
+ *         held, is the top of the ladder (MAX_RANK); a missing grade, a missing price or a zero
+ *         price leaves the cell blank instead of drawing NaN or Infinity.
+ * Role: the Critical column's arithmetic — the one place the table turns a company's grade, the
+ *       next grade's threshold price and today's price into a single figure.
+ */
+function criticalOf(record) {
+  const rank = asText(pick(record, RANK_KEYS));
+  if (rank === EMPTY) return undefined;                  // no grade on file: nothing to compare
+
+  const nextRank = asText(pick(record, NEXT_RANK_KEYS));
+  if (gradeOf(rank) === 'F' || nextRank.toUpperCase() === rank.toUpperCase()) return MAX_RANK;
+
+  const current = toNumber(pick(record, CURRENT_PRICE_KEYS));
+  const critical = toNumber(pick(record, NEXT_CRIT_KEYS));
+  if (current === null || critical === null || current === 0) return undefined;
+
+  return 1 - critical / current;
+}
+
+/**
  * Input: a figure from a company record (Kelly f* is stored at full float precision,
  *        0.4833819241982507, and so is the last price, 398.79998779296875) and how many
  *        decimals the column wants shown.
@@ -1002,6 +1065,27 @@ function formatProbability(value) {
   const percent = number > 1 ? number : number * 100;
   const rounded = Math.round(percent * 10) / 10;
   return String(rounded) + '%';
+}
+
+/**
+ * Input: what criticalOf() returned — the fraction 1 - next_crit / current_price, the words
+ *        MAX_RANK, or undefined when the figure could not be worked out.
+ * Output: that fraction as a percentage to one decimal ("12.5%", "20%", "-9.1%", "-100%"), the
+ *         words "max rank" as they stand, or the em-dash placeholder.
+ * Action: passes MAX_RANK straight through, and multiplies any other finite figure by 100 before
+ *         rounding; anything unreadable becomes EMPTY.
+ * Role: prints the Critical column. Unlike formatProbability() the figure is always a fraction —
+ *       0.125 is 12.5% and can never read as "125%" — because this value is arithmetic done on
+ *       this page, not a stored probability that may already have been typed as a percentage.
+ */
+function formatCritical(value) {
+  if (value === MAX_RANK) return MAX_RANK;
+
+  const number = toNumber(value);
+  if (number === null) return EMPTY;
+
+  const percent = Math.round(number * 1000) / 10;   // × 100, then one decimal at most
+  return String(percent) + '%';
 }
 
 /**
@@ -1183,9 +1267,10 @@ function rowHref(record) {
  * Action: rebuilds tbody from COLUMNS using textContent only (no HTML injection),
  *         styles rank as a pill, sends numbers through tabular figures, and — when the
  *         record has a symbol — puts a link to the company's file in the name cell and marks
- *         the row clickable (`tr.row-linked`, handled by handleRowClick()). The rows are drawn
- *         in sortState's order when a header has been pressed, and in the API's order until
- *         then.
+ *         the row clickable (`tr.row-linked`, handled by handleRowClick()). A column that
+ *         carries a `read` function (Critical) works its own value out of the record instead of
+ *         reading one field. The rows are drawn in sortState's order when a header has been
+ *         pressed, and in the API's order until then.
  * Role: draws the main analysis table, makes every row a door to viewcompany.html?symbol=…,
  *       and refreshes the row-count hint.
  */
@@ -1216,9 +1301,10 @@ function renderTable(rows) {
       const holder = column.link ? document.createElement('span') : cell;
       if (column.link) holder.className = 'name-fit';
 
-      const raw = pick(record, column.keys);
-      const text = column.percent ? formatProbability(raw)
-        : column.decimals === undefined ? asText(raw) : formatFigure(raw, column.decimals);
+      const raw = column.read ? column.read(record) : pick(record, column.keys);
+      const text = column.format ? column.format(raw)
+        : column.percent ? formatProbability(raw)
+          : column.decimals === undefined ? asText(raw) : formatFigure(raw, column.decimals);
       if (column.link && href) {
         const link = document.createElement('a');
         link.className = 'cell-link';
@@ -1290,11 +1376,12 @@ function fitCompanyNames() {
 /**
  * Input: the table's records, a column index and 'asc' or 'desc'.
  * Output: a new array holding the same records in that order.
- * Action: reads each record's value for that column with pick() — a 'number' column compares
- *         numbers (a numeric string is read as a number), any other column compares text
- *         through TEXT_ORDER. A blank cell sinks to the bottom whichever way the sort runs, and
- *         so does a figure that cannot be read, while two equal values keep the order the API
- *         sent them in.
+ * Action: reads each record's value for that column with pick() — or with the column's own `read`
+ *         function when it has one (Critical) — and a 'number' column compares numbers (a numeric
+ *         string is read as a number) while any other column compares text through TEXT_ORDER. A
+ *         blank cell sinks to the bottom whichever way the sort runs, and so does a figure that
+ *         cannot be read (a "max rank", which is no figure at all), while two equal values keep
+ *         the order the API sent them in.
  * Role: the whole ordering rule behind a header click — pure, so a probe can call it directly.
  */
 function sortRows(rows, index, direction) {
@@ -1303,7 +1390,7 @@ function sortRows(rows, index, direction) {
 
   const step = direction === 'desc' ? -1 : 1;
   const keyed = rows.map(function (record, order) {
-    const value = pick(record, column.keys);
+    const value = column.read ? column.read(record) : pick(record, column.keys);
     return { record: record, order: order, value: value, blank: asText(value) === EMPTY };
   });
 
@@ -1377,7 +1464,7 @@ function sortByColumn(index) {
  * Output: none.
  * Action: finds the header cell the click landed in and hands its index to sortByColumn();
  *         a click outside a header cell is ignored.
- * Role: one listener for the ten headers — the head is static markup, so it outlives every
+ * Role: one listener for the thirteen headers — the head is static markup, so it outlives every
  *       re-draw of the body; the button in each cell also gives the keyboard Enter and Space.
  */
 function handleSortClick(event) {
