@@ -4,7 +4,7 @@
  * 
  */
 
-const APIBASE = "api.kidsfunbank.ca"
+const APIBASE = "https://api.kidsfunbank.ca"
 const params = new URLSearchParams(window.location.search);
 const companyName = params.get("company_name"); // "Tencent"
 
@@ -12,7 +12,7 @@ const companyName = params.get("company_name"); // "Tencent"
 async function init(){
 
     const response = await fetch(
-        `${APIBASE}/get_symbol_by_name?name=${params.get("company_name")}`
+        `${APIBASE}/get_symbol_by_name?name=${companyName}`
     );
     console.log("final url: ", response.url)
 
