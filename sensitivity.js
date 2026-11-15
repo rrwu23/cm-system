@@ -12,7 +12,7 @@ const companyName = params.get("company_name"); // "Tencent"
 async function init(){
 
     const response = await fetch(
-        `${APIBASE}/get_symbol_by_name?name=${companyName}`
+        `${APIBASE}/companies/` + encodeURIComponent(companyName)
     );
     console.log("final url: ", response.url)
 
