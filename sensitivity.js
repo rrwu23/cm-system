@@ -70,3 +70,5 @@ async function refresh(){
         element.textContent = data.rank
     }
 }
+
+init()
