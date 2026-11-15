@@ -10,10 +10,9 @@ const companyName = params.get("company_name"); // "Tencent"
 
 
 async function init(){
-    const params = new URLSearchParams({ name: companyName });
 
     const response = await fetch(
-        `${APIBASE}/get_symbol_by_name?${params}`
+        `${APIBASE}/get_symbol_by_name?name=${params.get("company_name")}`
     );
 
     if (!response.ok) {
