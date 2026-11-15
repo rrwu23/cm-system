@@ -29,7 +29,7 @@ async function init(){
     let bad_price = data.bad_price
     let bad_eps = 10
     let bad_pe = bad_price / bad_eps
-    let rank = json.rank
+    let rank = data.rank
     document.getElementById("in-target-eps").textContent = target_eps
     document.getElementById("in-target-pe").textContent = target_pe
     document.getElementById("in-bad-eps").textContent = bad_eps
