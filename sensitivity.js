@@ -14,6 +14,7 @@ async function init(){
     const response = await fetch(
         `${APIBASE}/get_symbol_by_name?name=${params.get("company_name")}`
     );
+    console.log("final url: ", response.url)
 
     if (!response.ok) {
         throw new Error(`Request failed: ${response.status}`);
