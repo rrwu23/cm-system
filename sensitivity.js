@@ -22,10 +22,11 @@ async function init(){
 
     const json = await response.json();
     console.log(json)
-    let target_price = json.target_price
+    const data=json.numerical_values
+    let target_price = data.target_price
     let target_eps = target_price/20
     let target_pe = 20
-    let bad_price = json.bad_price
+    let bad_price = data.bad_price
     let bad_eps = 10
     let bad_pe = bad_price / bad_eps
     let rank = json.rank
