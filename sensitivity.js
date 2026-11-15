@@ -31,12 +31,15 @@ async function init(){
     let bad_eps = 10
     let bad_pe = bad_price / bad_eps
     let rank = data.rank
+    current_price = Math.round(data.current_price*100)/100
     console.log("input field values: ", target_eps, target_pe, bad_eps, bad_pe)
     document.getElementById("out-target-price").textContent = target_price
+    document.getElementById("out-bad-price").textContent = bad_price
     document.getElementById("in-target-eps").value = target_eps
     document.getElementById("in-target-pe").value = target_pe
     document.getElementById("in-bad-eps").value = bad_eps
     document.getElementById("in-bad-pe").value = bad_pe
+    document.getElementById("out-last-price").textContent = current_price
     for (const element of document.getElementsByClassName("rank-pill")) {
         element.textContent = rank
     }
@@ -73,6 +76,11 @@ async function refresh(){
     for (const element of document.getElementsByClassName("rank-pill")){
         element.textContent = data.rank
     }
+    
+    //next rank price workflow
+    //query next_rank endpoint on additional rank = 1 and = 2
+    //if next_rank1 = current_rank, 0, else crit. same for rank=2
+
 }
 
 init()
