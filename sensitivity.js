@@ -32,7 +32,7 @@ async function init(){
     let bad_pe = bad_price / bad_eps
     let rank = data.rank
     console.log("input field values: ", target_eps, target_pe, bad_eps, bad_pe)
-    document.getElementById("out-target-price").textContent = target
+    document.getElementById("out-target-price").textContent = target_price
     document.getElementById("in-target-eps").value = target_eps
     document.getElementById("in-target-pe").value = target_pe
     document.getElementById("in-bad-eps").value = bad_eps
