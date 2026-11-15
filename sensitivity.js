@@ -23,6 +23,7 @@ async function init(){
     const json = await response.json();
     console.log(json)
     const data=json.numerical_values
+    console.log("data: ", data)
     let target_price = data.target_price
     let target_eps = target_price/20
     let target_pe = 20
