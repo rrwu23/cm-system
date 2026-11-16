@@ -19,12 +19,12 @@ input_tp.addEventListener("change", () => {
 });
 const input_b = document.getElementById("in-bad-eps");
 
-input.addEventListener("change", () => {
+input_b.addEventListener("change", () => {
     updatePrices();
 });
 const input_bp = document.getElementById("in-bad-pe");
 
-input.addEventListener("change", () => {
+input_bp.addEventListener("change", () => {
     updatePrices();
 });
 
