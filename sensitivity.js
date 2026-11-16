@@ -79,12 +79,16 @@ async function refresh(){
     if (!rank_res.ok) {
         throw new Error(`Request failed: ${response.status}`);
     }
-
+    
+    //updating output cells
     const data = await rank_res.json();
     for (const element of document.getElementsByClassName("rank-pill")){
         element.textContent = data.rank
         element.dataset.grade = data.rank
     }
+
+    document.getElementById("out-target-price").textContent = target
+    document.getElementById("out-bad-price").textContent = bad
     
     //next rank price workflow
     //query next_rank endpoint on additional rank = 1 and = 2
