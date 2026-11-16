@@ -72,9 +72,14 @@ async function init(){
 }
 
 function parse_win_prob(win_prob){
-    let remaining = win_prob.slice(0, -1);
-    let win_prob_num = Number(remaining)/100
-    return win_prob_num
+    if (win_prob.slice(-1) == "%"){ 
+        let remaining = win_prob.slice(0, -1);
+        let win_prob_num = Number(remaining)/100
+        return win_prob_num
+    }
+    else {
+        return Number(win_prob)/100
+    }
 }
 
 async function refresh(){
