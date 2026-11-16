@@ -42,6 +42,7 @@ async function init(){
     document.getElementById("out-last-price").textContent = current_price
     for (const element of document.getElementsByClassName("rank-pill")) {
         element.textContent = rank
+        element.dataset.grade = rank
     }
 }
 
@@ -75,6 +76,7 @@ async function refresh(){
     const data = await rank_res.json();
     for (const element of document.getElementsByClassName("rank-pill")){
         element.textContent = data.rank
+        element.dataset.grade = data.rank
     }
     
     //next rank price workflow
