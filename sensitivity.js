@@ -28,6 +28,12 @@ input_bp.addEventListener("change", () => {
     refresh();
 });
 
+const input_w = document.getElementById("in-win-prob");
+
+input_w.addEventListener("change", () => {
+    refresh();
+});
+
 async function init(){
 
     const response = await fetch(
