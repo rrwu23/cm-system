@@ -53,6 +53,7 @@ async function refresh(){
     let bad_eps = document.getElementById("in-bad-eps").value
     let bad_pe = document.getElementById("in-bad-pe").value
     let bad = bad_pe * bad_eps
+    let win_prob = document.getElementById("in_win_prob").value
 
     const response = await fetch(
         `${APIBASE}/get_symbol_by_name?name=${params.get("company_name")}`
@@ -66,7 +67,7 @@ async function refresh(){
     const symbol = json.symbol
 
     const rank_res = await fetch(
-        `${APIBASE}/calcrank?target_price=${target}&bad_price=${bad}&symbol=${symbol}`
+        `${APIBASE}/calcrank?target_price=${target}&bad_price=${bad}&symbol=${symbol}&win_prob=${win_prob}`
     );
 
     if (!rank_res.ok) {
