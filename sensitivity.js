@@ -55,7 +55,7 @@ async function refresh(){
     let bad = bad_pe * bad_eps
 
     const response = await fetch(
-        `${APIBASE}/get_symbol_by_name?${params}`
+        `${APIBASE}/get_symbol_by_name?name=${params.get("name")}`
     );
 
     if (!response.ok) {
