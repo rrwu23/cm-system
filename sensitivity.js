@@ -46,6 +46,12 @@ async function init(){
     }
 }
 
+function parse_win_prob(win_prob){
+    let remaining = win_prob.slice(0, -1);
+    let win_prob_num = Number(remaining)/100
+    return win_prob_num
+}
+
 async function refresh(){
     let target_eps = document.getElementById("in-target-eps").value
     let target_pe = document.getElementById("in-target-pe").value
@@ -67,7 +73,7 @@ async function refresh(){
     const symbol = json.symbol
 
     const rank_res = await fetch(
-        `${APIBASE}/calcrank?target_price=${target}&bad_price=${bad}&symbol=${symbol}&win_prob=${win_prob}`
+        `${APIBASE}/calcrank?target_price=${target}&bad_price=${bad}&symbol=${symbol}&win_prob=${parse_win_prob(win_prob)}`
     );
 
     if (!rank_res.ok) {
