@@ -47,11 +47,11 @@ async function init(){
 }
 
 async function refresh(){
-    let target_eps = document.getElementById("in-target-eps").textContent
-    let target_pe = document.getElementById("in-target-pe").textContent
+    let target_eps = document.getElementById("in-target-eps").value
+    let target_pe = document.getElementById("in-target-pe").value
     let target=target_eps*target_pe
-    let bad_eps = document.getElementById("in-bad-eps").textContent
-    let bad_pe = document.getElementById("in-bad-pe").textContent
+    let bad_eps = document.getElementById("in-bad-eps").value
+    let bad_pe = document.getElementById("in-bad-pe").value
     let bad = bad_pe * bad_eps
 
     const response = await fetch(
