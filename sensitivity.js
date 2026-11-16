@@ -10,22 +10,22 @@ const companyName = params.get("company_name"); // "Tencent"
 const input_t = document.getElementById("in-target-eps");
 
 input_t.addEventListener("change", () => {
-    updatePrices();
+    refresh();
 });
 const input_tp = document.getElementById("in-target-pe");
 
 input_tp.addEventListener("change", () => {
-    updatePrices();
+    refresh();
 });
 const input_b = document.getElementById("in-bad-eps");
 
 input_b.addEventListener("change", () => {
-    updatePrices();
+    refresh();
 });
 const input_bp = document.getElementById("in-bad-pe");
 
 input_bp.addEventListener("change", () => {
-    updatePrices();
+    refresh();
 });
 
 async function init(){
