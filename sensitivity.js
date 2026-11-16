@@ -65,7 +65,7 @@ async function init(){
     document.getElementById("in-bad-eps").value = bad_eps
     document.getElementById("in-bad-pe").value = bad_pe
     document.getElementById("out-last-price").textContent = current_price
-    document.getElementById("in-win-prob").value = data.winning_probability
+    document.getElementById("in-win-prob").value = String(data.winning_probability*100) + "%" 
     for (const element of document.getElementsByClassName("rank-pill")) {
         element.textContent = rank
         element.dataset.grade = rank
