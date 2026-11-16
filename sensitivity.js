@@ -7,7 +7,26 @@
 const APIBASE = "https://api.kidsfunbank.ca"
 const params = new URLSearchParams(window.location.search);
 const companyName = params.get("company_name"); // "Tencent"
+const input_t = document.getElementById("in-target-eps");
 
+input_t.addEventListener("change", () => {
+    updatePrices();
+});
+const input_tp = document.getElementById("in-target-pe");
+
+input_tp.addEventListener("change", () => {
+    updatePrices();
+});
+const input_b = document.getElementById("in-bad-eps");
+
+input.addEventListener("change", () => {
+    updatePrices();
+});
+const input_bp = document.getElementById("in-bad-pe");
+
+input.addEventListener("change", () => {
+    updatePrices();
+});
 
 async function init(){
 
