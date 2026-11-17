@@ -143,7 +143,7 @@ async function refresh(){
 
 async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
     const rank1 = await fetch(
-        `${APIBASE}/next_rank_price/?num=1&symbol=${symbol}&target=${target}&bad=${bad}&win_prob=${win_prob}&cur_rank=${rank}`
+        `${APIBASE}/next_ranks_price/?num=1&symbol=${symbol}&target=${target}&bad=${bad}&win_prob=${win_prob}&cur_rank=${rank}`
     );
 
     console.log("final url: ", rank1.url)
@@ -156,7 +156,7 @@ async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
     let rank1_price = rank1_json.next_price
     
     const rank2 = await fetch(
-        `${APIBASE}/next_rank_price/?num=2&symbol=${symbol}&target=${target}&bad=${bad}&win_prob=${win_prob}&cur_rank=${rank}`
+        `${APIBASE}/next_ranks_price/?num=2&symbol=${symbol}&target=${target}&bad=${bad}&win_prob=${win_prob}&cur_rank=${rank}`
     );
 
      console.log("final url: ", rank1.url)
