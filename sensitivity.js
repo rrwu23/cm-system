@@ -81,7 +81,7 @@ async function init(){
         element.textContent = rank
         element.dataset.grade = rank
     }
-    next_rank_display_flow(symbol, target, bad, win_prob, data.rank)
+    next_rank_display_flow(symbol, target_price, bad_price, data.winning_probability, data.rank)
 }
 
 function parse_win_prob(win_prob){
@@ -137,7 +137,7 @@ async function refresh(){
     //query next_rank endpoint on additional rank = 1 and = 2
     //if next_rank1 = current_rank, 0, else crit. same for rank=2
 
-    next_rank_display_flow(symbol, target, bad, win_prob, data.rank)
+    next_rank_display_flow(symbol, target, bad, parse_win_prob(win_prob), data.rank)
 
 }
 
