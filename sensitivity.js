@@ -36,6 +36,17 @@ input_w.addEventListener("change", () => {
 
 async function init(){
 
+    const symbol_res = await fetch(
+        `${APIBASE}/get_symbol_by_name?name=${params.get("company_name")}`
+    );
+
+    if (!symbol_res.ok) {
+        throw new Error(`Request failed: ${symbol_res.status}`);
+    }
+
+    const symbol_json = await symbol_res.json();
+    const symbol = symbol_json.symbol
+
     const response = await fetch(
         `${APIBASE}/companies/` + encodeURIComponent(companyName)
     );
