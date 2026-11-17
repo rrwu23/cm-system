@@ -125,6 +125,41 @@ async function refresh(){
     //query next_rank endpoint on additional rank = 1 and = 2
     //if next_rank1 = current_rank, 0, else crit. same for rank=2
 
+    
+    const rank1 = await fetch(
+        `${APIBASE}/next_rank_price/?num=1&symbol=${symbol}&target=${target}&bad=${bad}&win_prob=${win_prob}&cur_rank=${data.rank}`
+    );
+
+    console.log("final url: ", rank1.url)
+
+    if (!rank1.ok) {
+        throw new Error(`Request failed: ${rank1.status}`);
+    }
+
+    const rank1_json = await rank1.json();
+    let rank1_price = rank1_json.next_price
+
+    const rank2 = await fetch(
+        `${APIBASE}/next_rank_price/?num=2&symbol=${symbol}&target=${target}&bad=${bad}&win_prob=${win_prob}&cur_rank=${data.rank}`
+    );
+
+     console.log("final url: ", rank1.url)
+
+    if (!rank2.ok) {
+        throw new Error(`Request failed: ${rank1.status}`);
+    }
+
+    const rank2_json = await rank1.json();
+
+    let rank2_price = rank2_json.next_price
+
+    if (rank1_json.rank == rank2_json.rank){
+        rank2_price=0
+    }
+
+    let next_rank_display = String(rank1_price) + " ~ " + String(rank2_price)
+
+    document.getElementById("out-next-rank-price").textContent = next_rank_display
 }
 
 init()
