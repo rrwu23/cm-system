@@ -271,6 +271,21 @@
     line-height: 1.2;
   }
 
+    .rank-pill-table {
+    display: inline-flex;
+    justify-content: center;
+    min-width: 24px;
+    padding: 3px 8px;
+    border: 1px solid #f0d98d;
+    border-radius: 999px;
+    background: var(--amber-soft);
+    color: #6b5300;
+    font-size: 12.5px;
+    font-weight: 700;
+    font-variant-numeric: normal;
+    line-height: 1.2;
+  }
+
   .rank-pill[data-grade="A"],
   .rank-pill[data-grade="B"],
   .rank-pill[data-grade="C"],
@@ -280,7 +295,22 @@
     color: var(--green-ink);
   }
 
+  .rank-pill-table[data-grade="A"],
+  .rank-pill-table[data-grade="B"],
+  .rank-pill-table[data-grade="C"],
+  .rank-pill-table[data-grade="D"] {
+    border-color: var(--green-line);
+    background: var(--green-soft);
+    color: var(--green-ink);
+  }
+
   .rank-pill[data-grade="F"] {
+    border-color: var(--pink-line);
+    background: var(--pink-soft);
+    color: var(--pink-ink);
+  }
+
+  .rank-pill-table[data-grade="F"] {
     border-color: var(--pink-line);
     background: var(--pink-soft);
     color: var(--pink-ink);
@@ -539,7 +569,7 @@
         <tbody id="ladder-body">
           <tr>
             <td class="cell-price">609.43</td><td>0.90</td><td>300%</td><td>2.71</td><td>47.3%</td>
-            <td class="cell-rank"><span class="rank-pill" data-grade="E">E</span></td>
+            <td class="cell-rank"><span class="rank-pill-table" data-grade="E">E</span></td>
           </tr>
         </tbody>
       </table>

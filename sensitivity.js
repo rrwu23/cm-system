@@ -153,7 +153,7 @@ async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
     }
 
     const rank1_json = await rank1.json();
-    let rank1_price = rank1_json.next_price
+    let rank1_price = Math.round(rank1_json.next_price*100)/100
     
     const rank2 = await fetch(
         `${APIBASE}/next_ranks_price/?num=2&symbol=${symbol}&target=${target}&bad=${bad}&win_prob=${win_prob}&cur_rank=${rank}`
@@ -167,7 +167,7 @@ async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
 
     const rank2_json = await rank2.json();
 
-    let rank2_price = rank2_json.next_price
+    let rank2_price = Math.round(rank2_json.next_price*100)/100
 
     if (rank1_json.rank == rank2_json.rank){
         rank2_price=0
