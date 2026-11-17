@@ -165,7 +165,7 @@ async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
         throw new Error(`Request failed: ${rank1.status}`);
     }
 
-    const rank2_json = await rank1.json();
+    const rank2_json = await rank2.json();
 
     let rank2_price = rank2_json.next_price
 
