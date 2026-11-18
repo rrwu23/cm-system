@@ -39,8 +39,8 @@ let target_price = data.target_price
 let target_eps = target_price/20
 let target_pe = 20
 let bad_price = data.bad_price
-let bad_eps = 10
-let bad_pe = bad_price / bad_eps
+let bad_pe = 10
+let bad_eps = bad_price/bad_pe
 let rank = data.rank
 let current_price = Math.round(data.current_price*100)/100
 
