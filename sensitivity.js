@@ -4,10 +4,45 @@
  * 
  */
 
+
 const APIBASE = "https://api.kidsfunbank.ca"
 const params = new URLSearchParams(window.location.search);
 const companyName = params.get("company_name"); // "Tencent"
 const input_t = document.getElementById("in-target-eps");
+
+
+const symbol_res = await fetch(
+    `${APIBASE}/get_symbol_by_name?name=${params.get("company_name")}`
+);
+
+if (!symbol_res.ok) {
+    throw new Error(`Request failed: ${symbol_res.status}`);
+}
+
+const symbol_json = await symbol_res.json();
+const symbol = symbol_json.symbol
+
+const response = await fetch(
+    `${APIBASE}/companies/` + encodeURIComponent(companyName)
+);
+console.log("final url: ", response.url)
+
+if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+}
+
+const json = await response.json();
+console.log(json)
+const data=json.numerical_values
+console.log("data: ", data)
+let target_price = data.target_price
+let target_eps = target_price/20
+let target_pe = 20
+let bad_price = data.bad_price
+let bad_eps = 10
+let bad_pe = bad_price / bad_eps
+let rank = data.rank
+let current_price = Math.round(data.current_price*100)/100
 
 input_t.addEventListener("change", () => {
     refresh();
@@ -35,39 +70,6 @@ input_w.addEventListener("change", () => {
 });
 
 async function init(){
-
-    const symbol_res = await fetch(
-        `${APIBASE}/get_symbol_by_name?name=${params.get("company_name")}`
-    );
-
-    if (!symbol_res.ok) {
-        throw new Error(`Request failed: ${symbol_res.status}`);
-    }
-
-    const symbol_json = await symbol_res.json();
-    const symbol = symbol_json.symbol
-
-    const response = await fetch(
-        `${APIBASE}/companies/` + encodeURIComponent(companyName)
-    );
-    console.log("final url: ", response.url)
-
-    if (!response.ok) {
-        throw new Error(`Request failed: ${response.status}`);
-    }
-
-    const json = await response.json();
-    console.log(json)
-    const data=json.numerical_values
-    console.log("data: ", data)
-    let target_price = data.target_price
-    let target_eps = target_price/20
-    let target_pe = 20
-    let bad_price = data.bad_price
-    let bad_eps = 10
-    let bad_pe = bad_price / bad_eps
-    let rank = data.rank
-    current_price = Math.round(data.current_price*100)/100
     console.log("input field values: ", target_eps, target_pe, bad_eps, bad_pe)
     document.getElementById("out-target-price").textContent = target_price
     document.getElementById("out-bad-price").textContent = bad_price
@@ -82,6 +84,7 @@ async function init(){
         element.dataset.grade = rank
     }
     next_rank_display_flow(symbol, target_price, bad_price, data.winning_probability, data.rank)
+    generate_table(current_price, data.winning_probability, bad_price, target_price, rank)
 }
 
 function parse_win_prob(win_prob){
@@ -138,7 +141,7 @@ async function refresh(){
     //if next_rank1 = current_rank, 0, else crit. same for rank=2
 
     next_rank_display_flow(symbol, target, bad, parse_win_prob(win_prob), data.rank)
-
+    generate_table(current_price, win_prob, bad, target, rank)
 }
 
 async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
@@ -176,6 +179,45 @@ async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
     let next_rank_display = String(rank2_price) + " ~ " + String(rank1_price)
 
     document.getElementById("out-next-rank-price").textContent = next_rank_display
+
+
+}
+
+async function generate_table(initial_market_price, win_prob, bad, target, rank){
+    //generate table row
+    let market = initial_market_price
+    let generating = true
+    while (generating){
+        if (market <= bad){
+            generating=false
+            break
+        }
+        //calc_kelly f
+
+        const response = await fetch(
+            `${APIBASE}/calc_sensitivity_row?target=${target}&bad=${bad}&win_prob=${win_prob}&cur_price=${market}`
+        );
+        console.log("final url: ", response.url)
+
+        if (!response.ok) {
+            throw new Error(`Request failed: ${response.status}`);
+        }
+
+        const json = await response.json();
+        odds = win_prob/(1-win_prob)
+        wl = json.wl
+        kelly_f = json.kelly_f
+        if (kelly_f<win_prob){
+            generating=false
+            break;
+        }
+        rank = json.rank
+        profit_factor = wl*odds
+        document.getElementById("ladder-table").appendChild(`<tr>
+            <td class="cell-price">${Math.round(market*100)/100}</td><td>${Math.round(wl*100)/100}</td><td>${Math.round(odds*100)}%</td><td>${Math.round(profit_factor*100)}</td><td>${Math.round(kelly_f*100)}%</td>
+            <td class="cell-rank"><span class="rank-pill-table" data-grade="${rank}">${rank}</span></td>
+          </tr>`)
+    }
 }
 
 init()
