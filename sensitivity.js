@@ -185,6 +185,9 @@ async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
 
 async function generate_table(initial_market_price, win_prob, bad, target, rank){
     //generate table row
+
+    document.getElementById("ladder-body").replaceChildren();
+
     let market = initial_market_price
     let generating = true
     while (generating){
