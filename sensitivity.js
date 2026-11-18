@@ -207,7 +207,7 @@ async function generate_table(initial_market_price, win_prob, bad, target, rank)
         let odds = win_prob/(1-win_prob)
         let wl = json.wl
         let kelly_f = json.kelly_f
-        if (kelly_f<win_prob){
+        if (kelly_f>win_prob){
             generating=false
             break;
         }
