@@ -187,7 +187,7 @@ async function generate_table(initial_market_price, win_prob, bad, target, rank)
     //generate table row
 
     document.getElementById("ladder-body").replaceChildren();
-
+    let insert_string = ""
     let market = initial_market_price
     let generating = true
     while (generating){
@@ -216,12 +216,13 @@ async function generate_table(initial_market_price, win_prob, bad, target, rank)
         }
         let rank = json.rank
         let profit_factor = wl*odds
-        document.getElementById("ladder-body").insertAdjacentHTML("beforeend", `<tr>
+        insert_string=insert_string+`<tr>
             <td class="cell-price">${Math.round(market*100)/100}</td><td>${Math.round(wl*100)/100}</td><td>${Math.round(odds*100)}%</td><td>${Math.round(profit_factor*100)/100}</td><td>${Math.round(kelly_f*100)}%</td>
             <td class="cell-rank"><span class="rank-pill-table" data-grade="${rank}">${rank}</span></td>
-          </tr>`)
-          market = market*0.95
+          </tr>`
+        market = market*0.95
     }
+    document.getElementById("ladder-body").insertAdjacentHTML("beforeend", insert_string)
 }
 
 init()
