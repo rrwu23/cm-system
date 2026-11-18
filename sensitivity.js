@@ -141,7 +141,7 @@ async function refresh(){
     //if next_rank1 = current_rank, 0, else crit. same for rank=2
 
     next_rank_display_flow(symbol, target, bad, parse_win_prob(win_prob), data.rank)
-    generate_table(current_price, win_prob, bad, target, rank)
+    generate_table(current_price, parse_win_prob(win_prob), bad, target, rank)
 }
 
 async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
