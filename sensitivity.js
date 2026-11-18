@@ -212,7 +212,7 @@ async function generate_table(initial_market_price, win_prob, bad, target, rank)
             break;
         }
         let rank = json.rank
-        profit_factor = wl*odds
+        let profit_factor = wl*odds
         document.getElementById("ladder-body").appendChild(`<tr>
             <td class="cell-price">${Math.round(market*100)/100}</td><td>${Math.round(wl*100)/100}</td><td>${Math.round(odds*100)}%</td><td>${Math.round(profit_factor*100)}</td><td>${Math.round(kelly_f*100)}%</td>
             <td class="cell-rank"><span class="rank-pill-table" data-grade="${rank}">${rank}</span></td>
