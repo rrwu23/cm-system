@@ -187,8 +187,9 @@ async function generate_table(initial_market_price, win_prob, bad, target, rank)
     //generate table row
 
     document.getElementById("ladder-body").replaceChildren();
+    
     let insert_string = ""
-    let market = initial_market_price
+    let market = initial_market_price*0.95
     let generating = true
     while (generating){
         if (market <= bad){
