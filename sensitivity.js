@@ -36,11 +36,11 @@ console.log(json)
 const data=json.numerical_values
 console.log("data: ", data)
 let target_price = data.target_price
-let target_eps = target_price/20
+let target_eps = Math.round(target_price*5)/100
 let target_pe = 20
 let bad_price = data.bad_price
 let bad_pe = 10
-let bad_eps = bad_price/bad_pe
+let bad_eps = Math.round(bad_price/bad_pe*100)/100
 let rank = data.rank
 let current_price = Math.round(data.current_price*100)/100
 
@@ -78,7 +78,7 @@ async function init(){
     document.getElementById("in-bad-eps").value = bad_eps
     document.getElementById("in-bad-pe").value = bad_pe
     document.getElementById("out-last-price").textContent = current_price
-    document.getElementById("in-win-prob").value = String(data.winning_probability*100) + "%" 
+    document.getElementById("in-win-prob").value = String(Math.round(data.winning_probability*100)) + "%" 
     for (const element of document.getElementsByClassName("rank-pill")) {
         element.textContent = rank
         element.dataset.grade = rank
