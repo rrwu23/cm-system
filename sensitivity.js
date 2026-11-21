@@ -84,7 +84,7 @@ async function init(){
         element.dataset.grade = rank
     }
     next_rank_display_flow(symbol, target_price, bad_price, data.winning_probability, data.rank)
-    generate_table(current_price, data.winning_probability, bad_price, target_price, rank)
+    generate_table(current_price, data.winning_probability, bad_price, target_price, data.rank)
 }
 
 function parse_win_prob(win_prob){
@@ -141,7 +141,7 @@ async function refresh(){
     //if next_rank1 = current_rank, 0, else crit. same for rank=2
 
     next_rank_display_flow(symbol, target, bad, parse_win_prob(win_prob), data.rank)
-    generate_table(current_price, parse_win_prob(win_prob), bad, target, rank)
+    generate_table(current_price, parse_win_prob(win_prob), bad, target, data.rank)
 }
 
 async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
