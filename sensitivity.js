@@ -183,13 +183,13 @@ async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
 
 }
 
-async function generate_table(initial_market_price, win_prob, bad, target, rank){
+async function generate_table(initial_market_price, win_prob, bad, target, rank_init){
     //generate table row
 
     document.getElementById("ladder-body").replaceChildren();
     
     let insert_string = ""
-    let market = initial_market_price*0.95
+    let market = initial_market_price
     let generating = true
     while (generating){
         if (market <= bad){
@@ -216,6 +216,9 @@ async function generate_table(initial_market_price, win_prob, bad, target, rank)
             break;
         }
         let rank = json.rank
+        if (rank_init == "F"){
+            rank = "F"
+        }
         let profit_factor = wl*odds
         insert_string=insert_string+`<tr>
             <td class="cell-price">${Math.round(market*100)/100}</td><td>${Math.round(wl*100)/100}</td><td>${Math.round(odds*100)}%</td><td>${Math.round(profit_factor*100)/100}</td><td>${Math.round(kelly_f*100)}%</td>
