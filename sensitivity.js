@@ -129,6 +129,11 @@ async function refresh(){
     //updating output cells
     const data = await rank_res.json();
     for (const element of document.getElementsByClassName("rank-pill")){
+        if (rank == "F"){
+            element.textContent = "F"
+            element.dataset.grade = "F"
+            continue
+        }
         element.textContent = data.rank
         element.dataset.grade = data.rank
     }
