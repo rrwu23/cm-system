@@ -151,6 +151,7 @@ async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
     if (rank=="F"){
         let next_rank_display = "0 ~ 0"
         document.getElementById("out-next-rank-price").textContent = next_rank_display
+        return
     }
 
     const rank1 = await fetch(
