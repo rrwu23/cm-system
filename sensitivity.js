@@ -150,6 +150,11 @@ async function refresh(){
 }
 
 async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
+    if (rank=="F"){
+        let next_rank_display = "0 ~ 0"
+        document.getElementById("out-next-rank-price").textContent = next_rank_display
+    }
+    
     const rank1 = await fetch(
         `${APIBASE}/next_ranks_price/?num=1&symbol=${symbol}&target=${target}&bad=${bad}&win_prob=${win_prob}&cur_rank=${rank}`
     );
