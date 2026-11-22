@@ -128,12 +128,10 @@ async function refresh(){
     
     //updating output cells
     const data = await rank_res.json();
+    if (rank=="F" || rank=="f"){
+        data.rank = "F"
+    }
     for (const element of document.getElementsByClassName("rank-pill")){
-        if (rank == "F"){
-            element.textContent = "F"
-            element.dataset.grade = "F"
-            continue
-        }
         element.textContent = data.rank
         element.dataset.grade = data.rank
     }
@@ -154,7 +152,7 @@ async function next_rank_display_flow(symbol, target, bad, win_prob, rank){
         let next_rank_display = "0 ~ 0"
         document.getElementById("out-next-rank-price").textContent = next_rank_display
     }
-    
+
     const rank1 = await fetch(
         `${APIBASE}/next_ranks_price/?num=1&symbol=${symbol}&target=${target}&bad=${bad}&win_prob=${win_prob}&cur_rank=${rank}`
     );
