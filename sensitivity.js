@@ -36,7 +36,7 @@ console.log(json)
 const data=json.numerical_values
 console.log("data: ", data)
 let target_price = data.target_price
-let target_eps = target_price
+let target_eps = target_price/20
 let target_pe = 20
 let bad_price = data.bad_price
 let bad_pe = 10
