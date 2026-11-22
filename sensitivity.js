@@ -36,11 +36,11 @@ console.log(json)
 const data=json.numerical_values
 console.log("data: ", data)
 let target_price = data.target_price
-let target_eps = Math.round(target_price*5)/100
+let target_eps = target_price
 let target_pe = 20
 let bad_price = data.bad_price
 let bad_pe = 10
-let bad_eps = Math.round(bad_price/bad_pe*100)/100
+let bad_eps = bad_price/bad_pe
 let rank = data.rank
 let current_price = Math.round(data.current_price*100)/100
 
@@ -73,9 +73,9 @@ async function init(){
     console.log("input field values: ", target_eps, target_pe, bad_eps, bad_pe)
     document.getElementById("out-target-price").textContent = target_price
     document.getElementById("out-bad-price").textContent = bad_price
-    document.getElementById("in-target-eps").value = target_eps
+    document.getElementById("in-target-eps").value = Math.round(target_eps*1000)/1000
     document.getElementById("in-target-pe").value = target_pe
-    document.getElementById("in-bad-eps").value = bad_eps
+    document.getElementById("in-bad-eps").value = Math.round(bad_eps*1000)/1000
     document.getElementById("in-bad-pe").value = bad_pe
     document.getElementById("out-last-price").textContent = current_price
     document.getElementById("in-win-prob").value = String(Math.round(data.winning_probability*100)) + "%" 
