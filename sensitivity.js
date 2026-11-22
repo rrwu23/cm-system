@@ -223,12 +223,15 @@ async function generate_table(initial_market_price, win_prob, bad, target, rank_
         let rank = json.rank
         if (rank_init == "F"){
             rank = "F"
+            kelly_f = 0
         }
         let profit_factor = wl*odds
-        insert_string=insert_string+`<tr>
-            <td class="cell-price">${Math.round(market*100)/100}</td><td>${Math.round(wl*100)/100}</td><td>${Math.round(odds*100)}%</td><td>${Math.round(profit_factor*100)/100}</td><td>${Math.round(kelly_f*100)}%</td>
-            <td class="cell-rank"><span class="rank-pill-table" data-grade="${rank}">${rank}</span></td>
-          </tr>`
+        if (market<target){
+            insert_string=insert_string+`<tr>
+                <td class="cell-price">${Math.round(market*100)/100}</td><td>${Math.round(wl*100)/100}</td><td>${Math.round(odds*100)}%</td><td>${Math.round(profit_factor*100)/100}</td><td>${Math.round(kelly_f*100)}%</td>
+                <td class="cell-rank"><span class="rank-pill-table" data-grade="${rank}">${rank}</span></td>
+            </tr>`
+        }
         market = market*0.95
     }
     document.getElementById("ladder-body").insertAdjacentHTML("beforeend", insert_string)
